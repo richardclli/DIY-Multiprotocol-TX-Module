@@ -194,6 +194,7 @@
 #define	FRSKY_RX_CC2500_INO
 #define	HITEC_CC2500_INO
 #define	HOTT_CC2500_INO
+#define	OMP_CC2500_INO			//Need both CC2500 and NRF
 #define	SCANNER_CC2500_INO
 #define	SFHSS_CC2500_INO
 #define	SKYARTEC_CC2500_INO
@@ -227,7 +228,6 @@
 #define	MJXQ_NRF24L01_INO
 #define	MT99XX_NRF24L01_INO
 #define	NCC1701_NRF24L01_INO
-#define	OMP_NRF24L01_INO
 #define	POTENSIC_NRF24L01_INO
 #define	PROPEL_NRF24L01_INO
 #define	Q303_NRF24L01_INO
@@ -261,6 +261,9 @@
 // If the channel 14 is above -50% the throttle is untouched but if it is between -50% and -100%, the throttle output will be forced between -100% and -150%.
 // For example, a value of -80% applied on channel 14 will instantly kill the motors on the X-Vert.
 #define DSM_THROTTLE_KILL_CH 14 
+
+//Enable DSM Forward Programming
+#define DSM_FWD_PGM
 
 //AFHDS2A specific settings
 //-------------------------
@@ -315,6 +318,7 @@
 #define DEVO_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define HUBSAN_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
 #define NCC1701_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
+#define OMP_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define PROPEL_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
 #define CABELL_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
 #define RLINK_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
