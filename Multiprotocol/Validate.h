@@ -114,9 +114,9 @@
 		#error "The RADIOLINK forced frequency tuning value is outside of the range -127..127."
 	#endif
 #endif
-#ifdef FORCE_SFHSS_TUNING
-	#if ( FORCE_SFHSS_TUNING < -127 ) || ( FORCE_SFHSS_TUNING > 127 )
-		#error "The SFHSS forced frequency tuning value is outside of the range -127..127."
+#ifdef FORCE_FUTABA_TUNING
+	#if ( FORCE_FUTABA_TUNING < -127 ) || ( FORCE_FUTABA_TUNING > 127 )
+		#error "The Futaba forced frequency tuning value is outside of the range -127..127."
 	#endif
 #endif
 #ifdef FORCE_SKYARTEC_TUNING
@@ -227,12 +227,14 @@
 	#undef HUBSAN_A7105_INO
 	#undef KYOSHO_A7105_INO
 	#undef PELIKAN_A7105_INO
+	#undef WFLYRF_A7105_INO
 #endif
 #ifndef CYRF6936_INSTALLED
 	#undef	DEVO_CYRF6936_INO
 	#undef	DSM_CYRF6936_INO
 	#undef	DSM_RX_CYRF6936_INO
 	#undef	J6PRO_CYRF6936_INO
+	#undef	MLINK_CYRF6936_INO
 	#undef	TRAXXAS_CYRF6936_INO
 	#undef	WFLY_CYRF6936_INO
 	#undef	WK2x01_CYRF6936_INO
@@ -251,7 +253,7 @@
 	#undef	REDPINE_CC2500_INO
 	#undef	RLINK_CC2500_INO
 	#undef	SCANNER_CC2500_INO
-	#undef	SFHSS_CC2500_INO
+	#undef	FUTABA_CC2500_INO
 	#undef	SKYARTEC_CC2500_INO
 #endif
 #ifndef NRF24L01_INSTALLED
@@ -344,6 +346,7 @@
 	#undef OMP_HUB_TELEMETRY
 	#undef RLINK_HUB_TELEMETRY
 	#undef DSM_RX_CYRF6936_INO
+	#undef DSM_FWD_PGM
 #else
 	#if defined(MULTI_TELEMETRY) && defined(MULTI_STATUS)
 		#error You should choose either MULTI_TELEMETRY or MULTI_STATUS but not both.

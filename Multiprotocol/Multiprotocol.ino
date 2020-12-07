@@ -101,8 +101,8 @@ uint16_t packet_period;
 uint8_t  packet_count;
 uint8_t  packet_sent;
 uint8_t  packet_length;
-#if defined(HOTT_CC2500_INO) || defined(ESKY150V2_CC2500_INO)
-	uint8_t  hopping_frequency[75];
+#if defined(HOTT_CC2500_INO) || defined(ESKY150V2_CC2500_INO) || defined(MLINK_CYRF6936_INO)
+	uint8_t  hopping_frequency[78];
 #else
 	uint8_t  hopping_frequency[50];
 #endif
@@ -374,7 +374,7 @@ void setup()
 		#ifndef DISABLE_FLASH_SIZE_CHECK
 			unsigned short *flashSize = (unsigned short *) (0x1FFFF7E0);// Address register 
 			debugln("Module Flash size: %dKB",(int)(*flashSize & 0xffff));
-			if((int)(*flashSize & 0xffff) < 128)  // Not supported by this project
+			if((int)(*flashSize & 0xffff) < MCU_EXPECTED_FLASH_SIZE)  // Not supported by this project
 				while (true) { //SOS
 					for(uint8_t i=0; i<3;i++)
 					{
@@ -401,6 +401,17 @@ void setup()
 					delay(1000);
 				}
 		#endif
+
+		// Initialize the EEPROM
+		uint16_t eepromStatus = EEPROM.init();
+		debugln("EEPROM initialized: %d",eepromStatus);
+
+		// If there was no valid EEPROM page the EEPROM is corrupt or uninitialized and should be formatted
+		if( eepromStatus == EEPROM_NO_VALID_PAGE )
+		{
+			EEPROM.format();
+			debugln("No valid EEPROM page, EEPROM formatted");
+		}
 	#else
 		//ATMEGA328p
 		// all inputs
@@ -577,9 +588,9 @@ void setup()
 				option			=	FORCE_FRSKYX_TUNING;		// Use config-defined tuning value for FrSkyX
 			else
 		#endif 
-		#if defined(FORCE_SFHSS_TUNING) && defined(SFHSS_CC2500_INO)
-			if (protocol==PROTO_SFHSS)
-				option			=	FORCE_SFHSS_TUNING;			// Use config-defined tuning value for SFHSS
+		#if defined(FORCE_FUTABA_TUNING) && defined(FUTABA_CC2500_INO)
+			if (protocol==PROTO_FUTABA)
+				option			=	FORCE_FUTABA_TUNING;			// Use config-defined tuning value for SFHSS
 			else
 		#endif
 		#if defined(FORCE_CORONA_TUNING) && defined(CORONA_CC2500_INO)
@@ -1185,6 +1196,13 @@ static void protocol_init()
 						remote_callback = ReadKyosho;
 						break;
 				#endif
+				#if defined(WFLYRF_A7105_INO)
+					case PROTO_WFLY:
+						PE1_off;	//antenna RF1
+						next_callback = initWFLYRF();
+						remote_callback = ReadWFLYRF;
+						break;
+				#endif
 			#endif
 			#ifdef CC2500_INSTALLED
 				#if defined(FRSKYD_CC2500_INO)
@@ -1224,8 +1242,8 @@ static void protocol_init()
 						remote_callback = ReadFrSkyX;
 						break;
 				#endif
-				#if defined(SFHSS_CC2500_INO)
-					case PROTO_SFHSS:
+				#if defined(FUTABA_CC2500_INO)
+					case PROTO_FUTABA:
 						PE1_off;	//antenna RF2
 						PE2_on;
 						next_callback = initSFHSS();
@@ -1325,6 +1343,13 @@ static void protocol_init()
 						PE2_on;	//antenna RF4
 						next_callback = initWFLY();
 						remote_callback = ReadWFLY;
+						break;
+				#endif
+				#if defined(MLINK_CYRF6936_INO)
+					case PROTO_MLINK:
+						PE2_on;	//antenna RF4
+						next_callback = initMLINK();
+						remote_callback = ReadMLINK;
 						break;
 				#endif
 				#if defined(DEVO_CYRF6936_INO)
@@ -1785,9 +1810,9 @@ void update_serial_data()
 			option=FORCE_FRSKYX_TUNING;			// Use config-defined tuning value for FrSkyX
 		else
 	#endif 
-	#if defined(FORCE_SFHSS_TUNING) && defined(SFHSS_CC2500_INO)
-		if (protocol==PROTO_SFHSS)
-			option=FORCE_SFHSS_TUNING;			// Use config-defined tuning value for SFHSS
+	#if defined(FORCE_FUTABA_TUNING) && defined(FUTABA_CC2500_INO)
+		if (protocol==PROTO_FUTABA)
+			option=FORCE_FUTABA_TUNING;			// Use config-defined tuning value for SFHSS
 		else
 	#endif
 	#if defined(FORCE_CORONA_TUNING) && defined(CORONA_CC2500_INO)

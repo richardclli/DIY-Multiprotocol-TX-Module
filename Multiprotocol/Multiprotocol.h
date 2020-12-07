@@ -19,7 +19,7 @@
 #define VERSION_MAJOR		1
 #define VERSION_MINOR		3
 #define VERSION_REVISION	1
-#define VERSION_PATCH_LEVEL	67
+#define VERSION_PATCH_LEVEL	79
 
 //******************
 // Protocols
@@ -47,7 +47,7 @@ enum PROTOCOLS
 	PROTO_MJXQ		= 18,	// =>NRF24L01
 	PROTO_SHENQI	= 19,	// =>NRF24L01
 	PROTO_FY326		= 20,	// =>NRF24L01
-	PROTO_SFHSS		= 21,	// =>CC2500
+	PROTO_FUTABA		= 21,	// =>CC2500
 	PROTO_J6PRO		= 22,	// =>CYRF6936
 	PROTO_FQ777		= 23,	// =>NRF24L01
 	PROTO_ASSAN		= 24,	// =>NRF24L01
@@ -103,6 +103,8 @@ enum PROTOCOLS
 	PROTO_RLINK		= 74,	// =>CC2500
 	PROTO_REALACC	= 76,	// =>NRF24L01
 	PROTO_OMP		= 77,	// =>CC2500 & NRF24L01
+	PROTO_MLINK		= 78,	// =>CYRF6936
+	PROTO_WFLYRF	= 79,	// =>A7105
 
 	PROTO_NANORF	= 126,	// =>NRF24L01
 	PROTO_TEST		= 127,	// =>CC2500
@@ -398,6 +400,18 @@ enum HEIGHT
 	HEIGHT_8CH	= 1,
 };
 
+enum KYOSHO
+{
+	KYOSHO_FHSS	= 0,
+	KYOSHO_HYPE	= 1,
+};
+
+enum JJRC345
+{
+	JJRC345		= 0,
+	SKYTMBLR	= 1,
+};
+
 #define NONE 		0
 #define P_HIGH		1
 #define P_LOW		0
@@ -440,8 +454,8 @@ enum MultiPacketTypes
 //***************
 //***  Tests  ***
 //***************
-#define IS_FAILSAFE_PROTOCOL	( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_SFHSS || protocol==PROTO_WK2x01 || protocol== PROTO_HOTT || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKY_R9)
-#define IS_CHMAP_PROTOCOL		( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_SFHSS || protocol==PROTO_WK2x01 || protocol== PROTO_DSM || protocol==PROTO_SLT || protocol==PROTO_FLYSKY || protocol==PROTO_ESKY || protocol==PROTO_J6PRO || protocol==PROTO_PELIKAN  || protocol==PROTO_SKYARTEC || protocol==PROTO_ESKY150V2 || protocol==PROTO_DSM_RX)
+#define IS_FAILSAFE_PROTOCOL	( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_HOTT || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKY_R9)
+#define IS_CHMAP_PROTOCOL		( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_DSM || protocol==PROTO_SLT || protocol==PROTO_FLYSKY || (protocol==PROTO_KYOSHO && sub_protocol==KYOSHO_HYPE) || protocol==PROTO_ESKY || protocol==PROTO_J6PRO || protocol==PROTO_PELIKAN  || protocol==PROTO_SKYARTEC || protocol==PROTO_ESKY150V2 || protocol==PROTO_DSM_RX)
 
 //***************
 //***  Flags  ***
@@ -720,6 +734,15 @@ enum {
 #define DSM_RX_EEPROM_OFFSET	877		// (4) TX ID + format, 5 bytes, end is 882
 //#define CONFIG_EEPROM_OFFSET 	882		// Current configuration of the multimodule
 
+/* STM32 Flash Size */
+#ifndef DISABLE_FLASH_SIZE_CHECK
+	#ifdef MCU_STM32F103C8
+		#define MCU_EXPECTED_FLASH_SIZE 64	// STM32F103C8 has 64KB of flash space
+	#else
+		#define MCU_EXPECTED_FLASH_SIZE 128	// STM32F103CB has 128KB of flash space
+	#endif
+#endif
+
 //****************************************
 //*** MULTI protocol serial definition ***
 //****************************************
@@ -757,7 +780,7 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 				MJXQ		18
 				SHENQI		19
 				FY326		20
-				SFHSS		21
+				Futaba		21
 				J6PRO		22
 				FQ777		23
 				ASSAN		24
@@ -813,6 +836,8 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 				RLINK		74
 				REALACC		76
 				OMP			77
+				MLINK		78
+				WFLYRF		79
    BindBit=>		0x80	1=Bind/0=No
    AutoBindBit=>	0x40	1=Yes /0=No
    RangeCheck=>		0x20	1=Yes /0=No
@@ -1006,6 +1031,9 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 		sub_protocol==HEIGHT
 			HEIGHT_5CH	0
 			HEIGHT_8CH	1
+		sub_protocol==JJRC345
+			JJRC345		0
+			SKYTMBLR	1
 
    Power value => 0x80	0=High/1=Low
   Stream[3]   = option_protocol;

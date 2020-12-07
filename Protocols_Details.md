@@ -91,6 +91,7 @@ CFlie|38|CFlie||||||||NRF24L01|
 [FrskyX](Protocols_Details.md#FRSKYX---15)|15|CH_16|CH_8|EU_16|EU_8|Cloned|Cloned_8|||CC2500|
 [FrskyX2](Protocols_Details.md#FRSKYX2---64)|64|CH_16|CH_8|EU_16|EU_8|Cloned|Cloned_8|||CC2500|
 [Frsky_RX](Protocols_Details.md#FRSKY_RX---55)|55|RX|CloneTX|||||||CC2500|
+[Futaba/SFHSS](Protocols_Details.md#Futaba---21)|21|SFHSS||||||||CC2500|
 [FX816](Protocols_Details.md#FX816---58)|28|FX816|P38|||||||NRF24L01|
 [FY326](Protocols_Details.md#FY326---20)|20|FY326|FY319|||||||NRF24L01|
 [GD00X](Protocols_Details.md#GD00X---47)|47|GD_V1*|GD_V2*|||||||NRF24L01|XN297L
@@ -103,10 +104,10 @@ CFlie|38|CFlie||||||||NRF24L01|
 [HoTT](Protocols_Details.md#HoTT---57)|57|Sync|No_Sync|||||||CC2500|
 [Hubsan](Protocols_Details.md#HUBSAN---2)|2|H107|H301|H501||||||A7105|
 [J6Pro](Protocols_Details.md#J6Pro---22)|22|J6Pro||||||||CYRF6936|
-[JJRC345](Protocols_Details.md#JJRC345---71)|71|JJRC345||||||||NRF24L01|XN297
+[JJRC345](Protocols_Details.md#JJRC345---71)|71|JJRC345|SkyTmblr|||||||NRF24L01|XN297
 [KF606](Protocols_Details.md#KF606---49)|49|KF606*||||||||NRF24L01|XN297
 [KN](Protocols_Details.md#KN---9)|9|WLTOYS|FEILUN|||||||NRF24L01|
-[Kyosho](Protocols_Details.md#Kyosho---73)|73|||||||||A7105|
+[Kyosho](Protocols_Details.md#Kyosho---73)|73|FHSS|Hype|||||||A7105|
 [MJXq](Protocols_Details.md#MJXQ---18)|18|WLH08|X600|X800|H26D|E010*|H26WH|PHOENIX*||NRF24L01|XN297
 [MT99xx](Protocols_Details.md#MT99XX---17)|17|MT|H7|YZ|LS|FY805||||NRF24L01|XN297
 [NCC1701](Protocols_Details.md#NCC1701---44)|44|NCC1701||||||||NRF24L01|
@@ -122,7 +123,6 @@ CFlie|38|CFlie||||||||NRF24L01|
 [Realacc](Protocols_Details.md#Realacc---76)|76|R11||||||||NRF24L01|
 [Redpine](Protocols_Details.md#Redpine---50)|50|FAST|SLOW|||||||NRF24L01|XN297
 [Scanner](Protocols_Details.md#Scanner---54)|54|||||||||CC2500|
-[SFHSS](Protocols_Details.md#SFHSS---21)|21|SFHSS||||||||CC2500|
 [Shenqi](Protocols_Details.md#Shenqi---19)|19|Shenqi||||||||NRF24L01|LT8900
 [Skyartec](Protocols_Details.md#Skyartec---68)|68|Skyartec||||||||CC2500|CC2500
 [SLT](Protocols_Details.md#SLT---11)|11|SLT_V1|SLT_V2|Q100|Q200|MR100||||NRF24L01|CC2500
@@ -163,7 +163,7 @@ CH1|CH2|CH3|CH4|CH5|CH6|CH7|CH8
 ---|---|---|---|---|---|---|---
 A|E|T|R|CH5|CH6|CH7|CH8
 
-Note that the RX ouput will be AETR.
+RX output will match the Flysky standard AETR independently of the input configuration AETR, RETA... unless on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
 
 ### Sub_protocol Flysky - *0*
 
@@ -192,7 +192,7 @@ CH5|CH6|CH7
 Extended limits and failsafe supported
 
 Telemetry enabled protocol:
- - by defaut using FrSky Hub protocol (for example er9x): RX(A1), battery voltage FS-CVT01(A2) and RX&TX RSSI
+ - by defaut using FrSky Hub protocol (for example er9x): A1=RX voltage (set the ratio to 12.7 and adjust with offset), A2=battery voltage FS-CVT01 (set the ratio to 12.7 and adjust with offset) and RX&TX RSSI
  - if using erskyTX and OpenTX: full telemetry information available
  - if telemetry is incomplete (missing RX RSSI for example), it means that you have to upgrade your RX firmware to version 1.6 or later. You can do it from an original Flysky TX or using a STLink like explained in [this tutorial](https://www.rcgroups.com/forums/showthread.php?2677694-How-to-upgrade-Flysky-Turnigy-iA6B-RX-to-firmware-1-6-with-a-ST-Link).
 
@@ -206,7 +206,7 @@ CH1|CH2|CH3|CH4|CH5|CH6|CH7|CH8|CH9|CH10|CH11|CH12|CH13|CH14
 ---|---|---|---|---|---|---|---|---|---|---|---|---|---
 A|E|T|R|CH5|CH6|CH7|CH8|CH9|CH10|CH11|CH12|CH13|CH14
 
-Note that the RX ouput will be AETR whatever the input channel order is.
+RX output will match the Flysky standard AETR independently of the input configuration AETR, RETA... unless on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
 
 ### Sub_protocol PWM_IBUS - *0*
 ### Sub_protocol PPM_IBUS - *1*
@@ -259,7 +259,7 @@ A|E|T|R|Gear|Gyro|Flap|Light
 
 ## HUBSAN - *2*
 
-Telemetry enabled for battery voltage and TX RSSI
+Telemetry enabled for A1=battery voltage (set the ratio to 12.7 and adjust with offset) and TX RSSI
 
 Option=vTX frequency (H107D) 5645 - 5900 MHz
 
@@ -291,11 +291,22 @@ H122D: FLIP
 H123D: FMODES -> -100%=Sport mode 1,0%=Sport mode 2,+100%=Acro
 
 ## Kyosho - *73*
+
+### Sub_protocol FHSS - *0*
 Surface protocol called FHSS introduced in 2017. Transmitters: KT-531P, KT-431PT, Flysky Noble NB4 (fw>2.0.67)...
 
 CH1|CH2|CH3|CH4|CH5|CH6|CH7|CH8|CH9|CH10|CH11|CH12|CH13|CH14
 ---|---|---|---|---|---|---|---|---|----|----|----|----|----
 STEERING|THROTTLE|CH3|CH4|CH5|CH6|CH7|CH8|CH9|CH10|CH11|CH12|CH13|CH14
+
+### Sub_protocol Hype - *1*
+Transmitters: ST6DF, HK6S, Flightsport. Receivers: ST6DF, HK6DF.
+
+CH1|CH2|CH3|CH4|CH5|CH6
+---|---|---|---|---|---
+A|E|T|R|CH5|CH6
+
+RX output will match the Hype standard AETR independently of the input configuration AETR, RETA... unless on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
 
 ## Pelikan - *60*
 Extended limits supported
@@ -553,15 +564,17 @@ Telemetry compatibility mode when Sync does not work due to an old firmware on t
 You should definitively upgrade your receivers/sensors to the latest firmware versions: https://www.rcgroups.com/forums/showpost.php?p=44668015&postcount=18022
 
 ## OMP - *77*
-Model: OMPHOBBY M2 Heli, T720 RC Glider
+Model: OMPHOBBY M1 & M2 Helis, T720 RC Glider
 
-Telemetry supported with A1=battery voltage (you need to adjust the offset with a voltmeter since there are some large differences between the models), RX_RSSI = TQly = percentage of received telemetry packets which has nothing to do with well the RX is receiving the TX but instead how well the TX=multi module is receiving the RX.
-Telemetry is using the NRF24L01 RF component @250K so depending on your module it might not work well.
+Telemetry supported:
+- A1 = battery voltage including "recovered" battery voltage from corrupted telemetry packets
+- A2 = battery voltage from only good telemetry packets
+- How to calculate accurately the OpenTX Ratio and Offset:
+Set the Ratio to 12.7 and Offset to 0, plug 2 batteries with extreme voltage values, write down the values Batt1=12.5V & Telem1=12.2V, Batt2=7V & Telem2=6.6V then calculate/set Ratio=12.7*[(12.5-7)/(12.2-6.6)]=12.47 => 12.5 and Offset=12.5-12.2*[(12.5-7)/(12.2-6.6)]=0.517 => 0.5
+- RX_RSSI = TQly = percentage of received telemetry packets (good and corrupted) received from the model which has nothing to do with how well the RX is receiving the TX
 
-Option for this protocol corresponds to fine frequency tuning. This value is different for each Module and **must** be accurate otherwise the link will not be stable.
+Option for this protocol corresponds to the CC2500 fine frequency tuning. This value is different for each Module and **must** be accurate otherwise the link will not be stable.
 Check the [Frequency Tuning page](/docs/Frequency_Tuning.md) to determine it.
-
-This protocol is using both the CC2500 and NRF24L01 to control the model and read the telemetry.
 
 CH1|CH2|CH3|CH4|CH5|CH6|CH7
 ---|---|---|---|---|---|---
@@ -569,7 +582,9 @@ A|E|T_PITCH|R|T_HOLD|IDLE|MODE
 
 IDLE= 3 pos switch: -100% Normal, 0% Idle1, +100% Idle2
 
-MODE= 3 pos switch -100% Attitude(?), 0% Attitude, +100% 3D 
+From the TX manual: MODE= 3 pos switch -100% Attitude, 0% Attitude(?), +100% 3D
+For M2: MODE= 3 pos switch -100% 6G, 0% 3D, +100% 3D
+
 
 ## Scanner - *54*
 2.4GHz scanner accessible using the OpenTX 2.3 Spectrum Analyser tool.
@@ -577,8 +592,6 @@ MODE= 3 pos switch -100% Attitude(?), 0% Attitude, +100% 3D
 ## RadioLink - *74*
 
 Extended limits
-
-**64 IDs available, use RX num to scroll through them**
 
 Option for this protocol corresponds to fine frequency tuning. This value is different for each Module and **must** be accurate otherwise the link will not be stable.
 Check the [Frequency Tuning page](/docs/Frequency_Tuning.md) to determine it.
@@ -594,19 +607,22 @@ Surface protocol. TXs: RC4GS,RC6GS. Compatible RXs:R7FG(Std),R6FG,R6F,R8EF,R8FM,
 
 CH1=Steering, CH2=Throttle, CH8=Gyro gain
 
-Telemetry: RX_RSSI (for the original value add -256), TX_RSSI, TX_QLY (0..100%), A1=RX_Batt, A2=Batt/2 (adjust the ratio)
+Telemetry: RX_RSSI (for the original value add -256), TX_RSSI, TX_QLY (0..100%), A1=RX_Batt (set the ratio to 12.7 and adjust with offset), A2=Batt (set the ratio to 25.5 and adjust with offset)
 
 ### Sub_protocol Air - *1*
 Air protocol. TXs: T8FB,T8S. Compatible RXs:R8EF,R8FM,R8SM,R4FG,R4F and more
 
 Telemetry: RX_RSSI (for the original value add -256), TX_RSSI, TX_QLY (0..100%)
 
-## SFHSS - *21*
-Models: Futaba RXs and XK models.
+## Futaba - *21*
+Also called SFHSS depending on radio version.
+
+### Sub_protocol SFHSS - *0*
+Models: Futaba SFHSS RXs and XK models.
 
 Extended limits and failsafe supported
 
-RX output will match the Futaba standard AETR independently of the input configuration AETR, RETA... unless on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
+RX output will match the Futaba standard servo throw, mid point and the channel order AETR independently of the input configuration AETR, RETA... unless if on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
 
 Option for this protocol corresponds to fine frequency tuning. This value is different for each Module and **must** be accurate otherwise the link will not be stable.
 Check the [Frequency Tuning page](/docs/Frequency_Tuning.md) to determine it.
@@ -638,7 +654,7 @@ A|E|T|R|CH5|CH6|CH7|CH8|CH9|CH10|CH11|CH12
 
 RX output will match the Devo standard EATR independently of the input configuration AETR, RETA... unless on OpenTX 2.3.3+ you use the "Disable channel mapping" feature on the GUI.
 
-Basic telemetry is available if RX supports it: TX_RSSI, A1 and A2
+Basic telemetry is available if RX supports it: TX_RSSI, A1 (set the ratio to 12.7) and A2 (set the ratio to 12.7)
 
 Bind procedure using serial:
 - With the TX off, put the binding plug in and power on the RX (RX LED slow blink), then power it down and remove the binding plug. Receiver should now be in autobind mode.
@@ -834,7 +850,7 @@ Models: Eachine H8(C) mini, BayangToys X6/X7/X9, JJRC JJ850, Floureon H101 ...
 
 Option=0 -> normal Bayang protocol
 
-Option=1 -> enable telemetry with [Silverxxx firmware](https://github.com/silver13/H101-acro/tree/master). Value returned to the TX using FrSkyD Hub are RX RSSI, TX RSSI, A1=uncompensated battery voltage, A2=compensated battery voltage
+Option=1 -> enable telemetry with [Silverxxx firmware](https://github.com/silver13/H101-acro/tree/master). Value returned to the TX using FrSkyD Hub are RX RSSI, TX RSSI, A1=uncompensated battery voltage (set the ratio to 5.0 and adjust with offset), A2=compensated battery voltage (set the ratio to 5.0 and adjust with offset)
 
 Option=2 -> enable analog aux channels with [NFE Silverware firmware](https://github.com/NotFastEnuf/NFE_Silverware). Two otherwise static bytes in the protocol overridden to add two 'analog' (non-binary) auxiliary channels.
 
@@ -1198,11 +1214,18 @@ ARM|
 ### Sub_protocol FQ777_951 - *3*
 
 ## JJRC345 - *71*
+
+CH1|CH2|CH3|CH4|CH5|CH6|CH7|CH8|CH9|CH10|CH11
+---|---|---|---|---|---|---|---|---|----|----
+A|E|T|R|FLIP|HEADLESS|RTH|LED|UNK1|UNK2|UNK3
+
+### Sub_protocol JJRC345 - *0*
 Model: JJRC345
 
-CH1|CH2|CH3|CH4|CH5|CH6|CH7
----|---|---|---|---|---|---
-A|E|T|R|FLIP|HEADLESS|RTH
+### Sub_protocol SkyTmblr - *1*
+Model: DF-Models SkyTumbler
+
+RTH not supported
 
 ## KF606 - *49*
 Model: KF606
@@ -1371,7 +1394,16 @@ Each toggle of VTX will increment the channel.
 
 Gimbal is full range.
 
-### Sub_protocol CX10D  - *2* and Sub_protocol CX10WD - *3*
+### Sub_protocol CX10D  - *2*
+Models CX10D and CX33W
+
+CH5|CH6
+---|---
+ARM|FLIP
+
+ARM is 3 positions: -100%=land / 0%=manual / +100%=take off
+
+### Sub_protocol CX10WD - *3*
 CH5|CH6
 ---|---
 ARM|FLIP
