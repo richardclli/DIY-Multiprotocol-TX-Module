@@ -129,7 +129,7 @@ static void __attribute__((unused)) SLT_build_packet()
 	uint8_t e = 0; // byte where extension 2 bits for every 10-bit channel are packed
 	for (uint8_t i = 0; i < 4; ++i)
 	{
-		uint16_t v = convert_channel_10b(CH_AETR[i]);
+		uint16_t v = convert_channel_10b(CH_AETR[i], false);
 		if(sub_protocol>SLT_V2 && (i==CH2 || i==CH3) )
 			v=1023-v;	// reverse throttle and elevator channels for Q100/Q200/MR100 protocols
 		packet[i] = v;
@@ -260,6 +260,7 @@ uint16_t SLT_callback()
 
 uint16_t initSLT()
 {
+	BIND_DONE;	// Not a TX bind protocol
 	packet_count = 0;
 	packet_sent = 0;
 	hopping_frequency_no = 0;

@@ -181,6 +181,8 @@
 #define	DEVO_CYRF6936_INO
 #define	DSM_CYRF6936_INO
 #define	DSM_RX_CYRF6936_INO
+#define	E010R5_CYRF6936_INO
+#define	E129_CYRF6936_INO
 #define	J6PRO_CYRF6936_INO
 #define	TRAXXAS_CYRF6936_INO
 #define	WFLY_CYRF6936_INO
@@ -188,7 +190,8 @@
 
 //The protocols below need a CC2500 to be installed
 #define	CORONA_CC2500_INO
-#define	ESKY150V2_CC2500_INO	//Need both CC2500 and NRF
+#define	E016HV2_CC2500_INO
+#define	ESKY150V2_CC2500_INO
 #define	FRSKYL_CC2500_INO
 #define	FRSKYD_CC2500_INO
 #define	FRSKYV_CC2500_INO
@@ -196,7 +199,6 @@
 #define	FRSKY_RX_CC2500_INO
 #define	HITEC_CC2500_INO
 #define	HOTT_CC2500_INO
-#define	OMP_CC2500_INO			//Need both CC2500 and NRF
 #define	SCANNER_CC2500_INO
 #define	FUTABA_CC2500_INO
 #define	SKYARTEC_CC2500_INO
@@ -227,9 +229,11 @@
 #define	JJRC345_NRF24L01_INO
 #define	KF606_NRF24L01_INO
 #define	KN_NRF24L01_INO
+#define	LOLI_NRF24L01_INO
 #define	MJXQ_NRF24L01_INO
 #define	MT99XX_NRF24L01_INO
 #define	NCC1701_NRF24L01_INO
+#define	OMP_CC2500_INO			//Need both CC2500 and NRF
 #define	POTENSIC_NRF24L01_INO
 #define	PROPEL_NRF24L01_INO
 #define	Q303_NRF24L01_INO
@@ -325,6 +329,7 @@
 #define CABELL_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
 #define RLINK_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define WFLY2_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
+#define LOLI_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define HITEC_HUB_TELEMETRY			// Use FrSkyD Hub format to send basic telemetry to the radios which can decode it like er9x, erskyTX and OpenTX
 #define HITEC_FW_TELEMETRY			// Forward received telemetry packets to be decoded by erskyTX and OpenTX
 #define SCANNER_TELEMETRY			// Forward spectrum scanner data to TX
@@ -571,10 +576,16 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 		DSMX_11
 	PROTO_DSM_RX
 		NONE
+	PROTO_E010R5
+		NONE
+	PROTO_E016HV2
+		NONE
 	PROTO_E01X
 		E012
 		E015
 		E016H
+	PROTO_E129
+		NONE
 	PROTO_ESKY
 		ESKY_STD
 		ESKY_ET4
@@ -677,6 +688,8 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 	PROTO_KYOSHO
 		KYOSHO_FHSS
 		KYOSHO_HYPE
+	PROTO_LOLI
+		NONE
 	PROTO_MJXQ
 		WLH08
 		X600
@@ -721,7 +734,9 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 		RED_FAST
 		RED_SLOW
 	PROTO_RLINK
-		NONE
+		RLINK_SURFACE
+		RLINK_AIR
+		RLINK_DUMBORC
 	PROTO_SCANNER
 		NONE
 	PROTO_FUTABA

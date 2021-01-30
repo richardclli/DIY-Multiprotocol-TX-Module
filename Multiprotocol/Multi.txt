@@ -71,9 +71,13 @@
 71,JJRC345,JJRC345,SkyTmblr
 72,Q90C
 73,Kyosho,FHSS,Hype
-74,RadioLink,Surface,Air
+74,RadioLink,Surface,Air,DumboRC
 75,---
 76,Realacc,R11
 77,OMP
 78,M-Link
 79,WFLY,RF20x
+80,E016H,E016Hv2
+81,E010r5
+82,LOLI
+83,E129

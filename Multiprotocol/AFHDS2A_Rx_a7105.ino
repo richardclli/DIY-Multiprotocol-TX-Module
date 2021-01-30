@@ -24,6 +24,7 @@
 enum {
 	AFHDS2A_RX_BIND1,
 	AFHDS2A_RX_BIND2,
+	AFHDS2A_RX_BIND3,
 	AFHDS2A_RX_DATA
 };
 
@@ -39,7 +40,7 @@ static void __attribute__((unused)) AFHDS2A_Rx_build_telemetry_packet()
 	packet_in[idx++] = 14; // number of channels in packet
 	// pack channels
 	for (uint8_t i = 0; i < 14; i++) {
-		uint32_t val = packet[9+i*2] | ((packet[10+i*2] << 8)&0x0F);
+		uint32_t val = packet[9+i*2] | (((packet[10+i*2])&0x0F) << 8);
 		if (val < 860)
 			val = 860;
 		// convert ppm (860-2140) to Multi (0-2047)
@@ -105,16 +106,17 @@ uint16_t AFHDS2A_Rx_callback()
 	switch(phase) {
 	case AFHDS2A_RX_BIND1:
 		if(IS_BIND_DONE) return initAFHDS2A_Rx();	// Abort bind
+		debugln("bind p=%d", phase+1);
 		if (AFHDS2A_Rx_data_ready()) {
 			A7105_ReadData(AFHDS2A_RX_TXPACKET_SIZE);
 			if ((packet[0] == 0xbb && packet[9] == 0x01) ||	(packet[0] == 0xbc && packet[9] <= 0x02)) {
 				memcpy(rx_id, &packet[1], 4); // TX id actually
 				memcpy(hopping_frequency, &packet[11], AFHDS2A_RX_NUMFREQ);
 				phase = AFHDS2A_RX_BIND2;
+				debugln("phase bind2");
 			}
 		}
 		A7105_WriteReg(A7105_0F_PLL_I, (packet_count++ & 1) ? 0x0D : 0x8C); // bind channels
-		A7105_SetTxRxMode(RX_EN);
 		A7105_Strobe(A7105_RX);
 		return 10000;
 
@@ -132,21 +134,30 @@ uint16_t AFHDS2A_Rx_callback()
 					eeprom_write_byte((EE_ADDR)temp++, rx_id[i]);
 				for (i = 0; i < AFHDS2A_RX_NUMFREQ; i++)
 					eeprom_write_byte((EE_ADDR)temp++, hopping_frequency[i]);
-				BIND_DONE;
-				phase = AFHDS2A_RX_DATA;
-				return 3850;
+				phase = AFHDS2A_RX_BIND3;
+				debugln("phase bind3");
+				packet_count = 0;
 			}
 		}
 
+	case AFHDS2A_RX_BIND3:
+		debugln("bind p=%d", phase+1);
 		// transmit response packet
 		packet[0] = 0xBC;
 		memcpy(&packet[1], rx_id, 4);
 		memcpy(&packet[5], rx_tx_addr, 4);
-		packet[9] = 0x01;
+		//packet[9] = 0x01;
 		packet[10] = 0x00;
 		memset(&packet[11], 0xFF, 26);
 		A7105_SetTxRxMode(TX_EN);
+		rx_disable_lna = !IS_POWER_FLAG_on;
 		A7105_WriteData(AFHDS2A_RX_RXPACKET_SIZE, packet_count++ & 1 ? 0x0D : 0x8C);
+		if(phase == AFHDS2A_RX_BIND3 && packet_count > 20)
+		{
+			debugln("done");
+			BIND_DONE;
+			return initAFHDS2A_Rx();	// Restart protocol
+		}
 		phase |= AFHDS2A_RX_WAIT_WRITE;
 		return 1700;
 	
@@ -156,8 +167,8 @@ uint16_t AFHDS2A_Rx_callback()
 		while ((uint32_t)(micros() - pps_timer) < 700) // Wait max 700µs, using serial+telemetry exit in about 120µs
 			if (!(A7105_ReadReg(A7105_00_MODE) & 0x01))
 				break;
-		A7105_SetTxRxMode(RX_EN);
 		A7105_Strobe(A7105_RX);
+	case AFHDS2A_RX_BIND3 | AFHDS2A_RX_WAIT_WRITE:
 		phase &= ~AFHDS2A_RX_WAIT_WRITE;
 		return 10000;
 	

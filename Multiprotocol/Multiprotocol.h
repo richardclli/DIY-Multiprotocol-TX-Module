@@ -18,8 +18,8 @@
 //******************
 #define VERSION_MAJOR		1
 #define VERSION_MINOR		3
-#define VERSION_REVISION	1
-#define VERSION_PATCH_LEVEL	86
+#define VERSION_REVISION	2
+#define VERSION_PATCH_LEVEL	15
 
 //******************
 // Protocols
@@ -47,7 +47,7 @@ enum PROTOCOLS
 	PROTO_MJXQ		= 18,	// =>NRF24L01
 	PROTO_SHENQI	= 19,	// =>NRF24L01
 	PROTO_FY326		= 20,	// =>NRF24L01
-	PROTO_FUTABA		= 21,	// =>CC2500
+	PROTO_FUTABA	= 21,	// =>CC2500
 	PROTO_J6PRO		= 22,	// =>CYRF6936
 	PROTO_FQ777		= 23,	// =>NRF24L01
 	PROTO_ASSAN		= 24,	// =>NRF24L01
@@ -105,6 +105,10 @@ enum PROTOCOLS
 	PROTO_OMP		= 77,	// =>CC2500 & NRF24L01
 	PROTO_MLINK		= 78,	// =>CYRF6936
 	PROTO_WFLY2		= 79,	// =>A7105
+	PROTO_E016HV2	= 80,	// =>CC2500 & NRF24L01
+	PROTO_E010R5	= 81,	// =>CYRF6936
+	PROTO_LOLI		= 82,	// =>NRF24L01
+	PROTO_E129		= 83,	// =>CYRF6936
 
 	PROTO_NANORF	= 126,	// =>NRF24L01
 	PROTO_TEST		= 127,	// =>CC2500
@@ -412,6 +416,13 @@ enum JJRC345
 	SKYTMBLR	= 1,
 };
 
+enum RLINK
+{
+	RLINK_SURFACE	= 0,
+	RLINK_AIR		= 1,
+	RLINK_DUMBORC	= 2,
+};
+
 #define NONE 		0
 #define P_HIGH		1
 #define P_LOW		0
@@ -454,7 +465,7 @@ enum MultiPacketTypes
 //***************
 //***  Tests  ***
 //***************
-#define IS_FAILSAFE_PROTOCOL	( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_HOTT || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKY_R9 || protocol==PROTO_WFLY2)
+#define IS_FAILSAFE_PROTOCOL	( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_HOTT || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKY_R9 || protocol==PROTO_WFLY2 || protocol==PROTO_LOLI)
 #define IS_CHMAP_PROTOCOL		( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_DSM || protocol==PROTO_SLT || protocol==PROTO_FLYSKY || (protocol==PROTO_KYOSHO && sub_protocol==KYOSHO_HYPE) || protocol==PROTO_ESKY || protocol==PROTO_J6PRO || protocol==PROTO_PELIKAN  || protocol==PROTO_SKYARTEC || protocol==PROTO_ESKY150V2 || protocol==PROTO_DSM_RX)
 
 //***************
@@ -561,8 +572,9 @@ enum MultiPacketTypes
 //********************
 #if defined(STM32_BOARD) && (defined (DEBUG_SERIAL) || defined (ARDUINO_MULTI_DEBUG))
 	uint16_t debug_time=0;
-	#define debug(msg, ...)  {char debug_buf[64]; sprintf(debug_buf, msg, ##__VA_ARGS__); Serial.write(debug_buf);}
-	#define debugln(msg, ...)  {char debug_buf[64]; sprintf(debug_buf, msg "\r\n", ##__VA_ARGS__); Serial.write(debug_buf);}
+	char debug_buf[64];
+	#define debug(msg, ...)  { sprintf(debug_buf, msg, ##__VA_ARGS__); Serial.write(debug_buf);}
+	#define debugln(msg, ...)  { sprintf(debug_buf, msg "\r\n", ##__VA_ARGS__); Serial.write(debug_buf);}
 	#define debug_time(msg)  { uint16_t debug_time_TCNT1=TCNT1; debug_time=debug_time_TCNT1-debug_time; debug(msg "%u", debug_time>>1); debug_time=debug_time_TCNT1; }
 	#define debugln_time(msg)  { uint16_t debug_time_TCNT1=TCNT1; debug_time=debug_time_TCNT1-debug_time; debug(msg "%u\r\n", debug_time>>1); debug_time=debug_time_TCNT1; }
 #else
@@ -757,8 +769,9 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 				0x54	sub_protocol values are 32..63	Stream contains channels
 				0x57	sub_protocol values are 0..31	Stream contains failsafe
 				0x56	sub_protocol values are 32..63	Stream contains failsafe
+				Note: V2 adds the 2 top bits to extend the number of protocols to 256 in Stream[26]
   Stream[1]   = sub_protocol|BindBit|RangeCheckBit|AutoBindBit;
-   sub_protocol is 0..31 (bits 0..4), value should be added with 32 if Stream[0] = 0x54 | 0x56
+   sub_protocol is 0..31 (bits 0..4)
 				Reserved	0
 				Flysky		1
 				Hubsan		2
@@ -838,6 +851,10 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 				OMP			77
 				MLINK		78
 				WFLY2		79
+				E016HV2		80
+				E010R5		81
+				LOLI		82
+				E129		83
    BindBit=>		0x80	1=Bind/0=No
    AutoBindBit=>	0x40	1=Yes /0=No
    RangeCheck=>		0x20	1=Yes /0=No
@@ -1034,6 +1051,10 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 		sub_protocol==JJRC345
 			JJRC345		0
 			SKYTMBLR	1
+		sub_protocol==RLINK
+			RLINK_SURFACE	0
+			RLINK_AIR		1
+			RLINK_DUMBORC	2
 
    Power value => 0x80	0=High/1=Low
   Stream[3]   = option_protocol;

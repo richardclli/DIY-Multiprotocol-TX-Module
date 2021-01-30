@@ -86,7 +86,6 @@ static void __attribute__((unused)) HOTT_rf_init()
 	for (uint8_t i = 0; i < 39; ++i)
 		CC2500_WriteReg(i, pgm_read_byte_near(&HOTT_init_values[i]));
 
-	prev_option = option;
 	CC2500_WriteReg(CC2500_0C_FSCTRL0, option);
 	
 	CC2500_SetTxRxMode(TX_EN);
@@ -159,7 +158,7 @@ static void __attribute__((unused)) HOTT_init()
 	else
 	{
 		memcpy(&packet[40],rx_tx_addr,5);
-		uint8_t addr=HOTT_EEPROM_OFFSET+RX_num*5;
+		uint16_t addr=HOTT_EEPROM_OFFSET+RX_num*5;
 		debug("RXID: ");
 		for(uint8_t i=0;i<5;i++)
 		{
@@ -380,7 +379,7 @@ uint16_t ReadHOTT()
 						for(uint8_t i=0;i<HOTT_RX_PACKET_LEN;i++)
 							debug(" %02X", packet_in[i]);
 						debugln("");
-						uint8_t addr=HOTT_EEPROM_OFFSET+RX_num*5;
+						uint16_t addr=HOTT_EEPROM_OFFSET+RX_num*5;
 						for(uint8_t i=0; i<5; i++)
 							eeprom_write_byte((EE_ADDR)(addr+i),packet_in[5+i]);
 						BIND_DONE;

@@ -75,7 +75,7 @@ uint32_t blink=0,last_signal=0;
 //
 uint16_t counter;
 uint8_t  channel;
-#ifdef ESKY150V2_CC2500_INO
+#if defined(ESKY150V2_CC2500_INO)
 	uint8_t  packet[150];
 #else
 	uint8_t  packet[50];
@@ -112,7 +112,9 @@ uint8_t  rf_ch_num;
 uint8_t  throttle, rudder, elevator, aileron;
 uint8_t  flags;
 uint16_t crc;
+uint16_t crc16_polynomial;
 uint8_t  crc8;
+uint8_t  crc8_polynomial;
 uint16_t seed;
 uint16_t failsafe_count;
 uint16_t state;
@@ -290,7 +292,7 @@ void setup()
 			currMillis = millis();
 		}
 
-		delay(50);  // Brief delay for FTDI debugging
+		delay(250);  // Brief delay for FTDI debugging
 		debugln("Multiprotocol version: %d.%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION, VERSION_PATCH_LEVEL);
 	#endif
 
@@ -746,6 +748,18 @@ void loop()
 	}
 }
 
+void End_Bind()
+{
+	//Request protocol to terminate bind
+	if(protocol==PROTO_FRSKYD || protocol==PROTO_FRSKYL || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKYV || protocol==PROTO_FRSKY_R9
+	|| protocol==PROTO_DSM_RX || protocol==PROTO_AFHDS2A_RX || protocol==PROTO_FRSKY_RX || protocol==PROTO_BAYANG_RX
+	|| protocol==PROTO_AFHDS2A || protocol==PROTO_BUGS || protocol==PROTO_BUGSMINI || protocol==PROTO_HOTT || protocol==PROTO_ASSAN)
+		BIND_DONE;
+	else
+		if(bind_counter>2)
+			bind_counter=2;
+}
+
 bool Update_All()
 {
 	#ifdef ENABLE_SERIAL
@@ -821,7 +835,7 @@ bool Update_All()
 	update_led_status();
 	#if defined(TELEMETRY)
 		#if ( !( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) ) )
-			if((protocol == PROTO_BAYANG_RX) || (protocol == PROTO_AFHDS2A_RX) || (protocol == PROTO_FRSKY_RX) || (protocol == PROTO_SCANNER) || (protocol==PROTO_FRSKYD) || (protocol==PROTO_BAYANG) || (protocol==PROTO_NCC1701) || (protocol==PROTO_BUGS) || (protocol==PROTO_BUGSMINI) || (protocol==PROTO_HUBSAN) || (protocol==PROTO_AFHDS2A) || (protocol==PROTO_FRSKYX) || (protocol==PROTO_FRSKYX2) || (protocol==PROTO_DSM) || (protocol==PROTO_CABELL) || (protocol==PROTO_HITEC) || (protocol==PROTO_HOTT) || (protocol==PROTO_PROPEL) || (protocol==PROTO_OMP) || (protocol==PROTO_DEVO) || (protocol==PROTO_DSM_RX) || (protocol==PROTO_FRSKY_R9) || (protocol==PROTO_RLINK) || (protocol==PROTO_WFLY2))
+			if((protocol == PROTO_BAYANG_RX) || (protocol == PROTO_AFHDS2A_RX) || (protocol == PROTO_FRSKY_RX) || (protocol == PROTO_SCANNER) || (protocol==PROTO_FRSKYD) || (protocol==PROTO_BAYANG) || (protocol==PROTO_NCC1701) || (protocol==PROTO_BUGS) || (protocol==PROTO_BUGSMINI) || (protocol==PROTO_HUBSAN) || (protocol==PROTO_AFHDS2A) || (protocol==PROTO_FRSKYX) || (protocol==PROTO_FRSKYX2) || (protocol==PROTO_DSM) || (protocol==PROTO_CABELL) || (protocol==PROTO_HITEC) || (protocol==PROTO_HOTT) || (protocol==PROTO_PROPEL) || (protocol==PROTO_OMP) || (protocol==PROTO_DEVO) || (protocol==PROTO_DSM_RX) || (protocol==PROTO_FRSKY_R9) || (protocol==PROTO_RLINK) || (protocol==PROTO_WFLY2) || (protocol==PROTO_LOLI))
 		#endif
 				if(IS_DISABLE_TELEM_off)
 					TelemetryUpdate();
@@ -836,14 +850,7 @@ bool Update_All()
 		if(IS_AUTOBIND_FLAG_on && IS_BIND_CH_PREV_on && Channel_data[BIND_CH-1]<CHANNEL_MIN_COMMAND)
 		{ // Autobind is on and BIND_CH went down
 			BIND_CH_PREV_off;
-			//Request protocol to terminate bind
-			#if defined(FRSKYD_CC2500_INO) || defined(FRSKYL_CC2500_INO) || defined(FRSKYX_CC2500_INO) || defined(FRSKYV_CC2500_INO) || defined(AFHDS2A_A7105_INO) || defined(FRSKYR9_SX1276_INO)
-			if(protocol==PROTO_FRSKYD || protocol==PROTO_FRSKYL || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKYV || protocol==PROTO_AFHDS2A || protocol==PROTO_FRSKY_R9)
-				BIND_DONE;
-			else
-			#endif
-			if(bind_counter>2)
-				bind_counter=2;
+			End_Bind();
 		}
 	#endif //ENABLE_BIND_CH
 	if(IS_CHANGE_PROTOCOL_FLAG_on)
@@ -1085,6 +1092,9 @@ static void protocol_init()
 		next_callback=0;				// Default is immediate call back
 		LED_off;						// Led off during protocol init
 		modules_reset();				// Reset all modules
+		crc16_polynomial = 0x1021;		// Default CRC crc16_polynomial
+		crc8_polynomial  = 0x31;		// Default CRC crc8_polynomial
+		prev_option = option;
 
 		// reset telemetry
 		#ifdef TELEMETRY
@@ -1322,6 +1332,14 @@ static void protocol_init()
 						remote_callback = RLINK_callback;
 						break;
 				#endif
+				#if defined(E016HV2_CC2500_INO)
+					case PROTO_E016HV2:
+						PE1_off;
+						PE2_on;	//antenna RF2
+						next_callback = initE016HV2();
+						remote_callback = E016HV2_callback;
+						break;
+				#endif
 			#endif
 			#ifdef CYRF6936_INSTALLED
 				#if defined(DSM_CYRF6936_INO)
@@ -1350,6 +1368,20 @@ static void protocol_init()
 						PE2_on;	//antenna RF4
 						next_callback = initMLINK();
 						remote_callback = ReadMLINK;
+						break;
+				#endif
+				#if defined(E010R5_CYRF6936_INO)
+					case PROTO_E010R5:
+						PE2_on;	//antenna RF4
+						next_callback = initE010R5();
+						remote_callback = ReadE010R5;
+						break;
+				#endif
+				#if defined(E129_CYRF6936_INO)
+					case PROTO_E129:
+						PE2_on;	//antenna RF4
+						next_callback = initE129();
+						remote_callback = ReadE129;
 						break;
 				#endif
 				#if defined(DEVO_CYRF6936_INO)
@@ -1478,6 +1510,12 @@ static void protocol_init()
 					case PROTO_MT99XX:
 						next_callback=initMT99XX();
 						remote_callback = MT99XX_callback;
+						break;
+				#endif
+				#if defined(LOLI_NRF24L01_INO)
+					case PROTO_LOLI:
+						next_callback=initLOLI();
+						remote_callback = LOLI_callback;
 						break;
 				#endif
 				#if defined(MJXQ_NRF24L01_INO)
@@ -1922,13 +1960,7 @@ void update_serial_data()
 		else
 			if( ((rx_ok_buff[1]&0x80)==0) && ((cur_protocol[1]&0x80)!=0) )	// Bind flag has been reset
 			{ // Request protocol to end bind
-				#if defined(FRSKYD_CC2500_INO) || defined(FRSKYL_CC2500_INO) || defined(FRSKYX_CC2500_INO) || defined(FRSKYV_CC2500_INO) || defined(AFHDS2A_A7105_INO) || defined(FRSKYR9_SX1276_INO) || defined(DSM_RX_CYRF6936_INO)
-				if(protocol==PROTO_FRSKYD || protocol==PROTO_FRSKYL || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKYV || protocol==PROTO_AFHDS2A || protocol==PROTO_FRSKY_R9 || protocol==PROTO_DSM_RX)
-					BIND_DONE;
-				else
-				#endif
-				if(bind_counter>2)
-					bind_counter=2;
+				End_Bind();
 			}
 			
 	//store current protocol values
@@ -2290,7 +2322,7 @@ void pollBoot()
 #if defined(TELEMETRY)
 void PPM_Telemetry_serial_init()
 {
-	if( (protocol==PROTO_FRSKYD) || (protocol==PROTO_HUBSAN) || (protocol==PROTO_AFHDS2A) || (protocol==PROTO_BAYANG)|| (protocol==PROTO_NCC1701) || (protocol==PROTO_CABELL)  || (protocol==PROTO_HITEC) || (protocol==PROTO_BUGS) || (protocol==PROTO_BUGSMINI) || (protocol==PROTO_PROPEL) || (protocol==PROTO_OMP) || (protocol==PROTO_RLINK) || (protocol==PROTO_WFLY2)
+	if( (protocol==PROTO_FRSKYD) || (protocol==PROTO_HUBSAN) || (protocol==PROTO_AFHDS2A) || (protocol==PROTO_BAYANG)|| (protocol==PROTO_NCC1701) || (protocol==PROTO_CABELL)  || (protocol==PROTO_HITEC) || (protocol==PROTO_BUGS) || (protocol==PROTO_BUGSMINI) || (protocol==PROTO_PROPEL) || (protocol==PROTO_OMP) || (protocol==PROTO_RLINK) || (protocol==PROTO_WFLY2)  || (protocol==PROTO_LOLI)
 	#ifdef TELEMETRY_FRSKYX_TO_FRSKYD
 		 || (protocol==PROTO_FRSKYX) || (protocol==PROTO_FRSKYX2)
 	#endif
@@ -2399,6 +2431,37 @@ static void __attribute__((unused)) calc_fh_channels(uint8_t num_ch)
 		if ( (next_ch <= 26 && count_2_26 < max) || (next_ch >= 27 && next_ch <= 50 && count_27_50 < max) || (next_ch >= 51 && count_51_74 < max) )
 			hopping_frequency[idx++] = next_ch;//find hopping frequency
 	}
+}
+
+static uint8_t __attribute__((unused)) bit_reverse(uint8_t b_in)
+{
+    uint8_t b_out = 0;
+    for (uint8_t i = 0; i < 8; ++i)
+	{
+        b_out = (b_out << 1) | (b_in & 1);
+        b_in >>= 1;
+    }
+    return b_out;
+}
+
+static void __attribute__((unused)) crc16_update(uint8_t a, uint8_t bits)
+{
+	crc ^= a << 8;
+    while(bits--)
+        if (crc & 0x8000)
+            crc = (crc << 1) ^ crc16_polynomial;
+		else
+            crc = crc << 1;
+}
+
+static void __attribute__((unused)) crc8_update(uint8_t byte)
+{
+	crc8 = crc8 ^ byte;
+	for ( uint8_t j = 0; j < 8; j++ )
+		if ( crc8 & 0x80 )
+			crc8 = (crc8<<1) ^ crc8_polynomial;
+		else
+			crc8 <<= 1;
 }
 
 /**************************/

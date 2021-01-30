@@ -298,7 +298,7 @@ uint16_t ReadAFHDS2A()
 				A7105_ReadData(AFHDS2A_RXPACKET_SIZE);
 				if(packet[0] == 0xbc && packet[9] == 0x01)
 				{
-					uint8_t addr;
+					uint16_t addr;
 					if(RX_num<16)
 						addr=AFHDS2A_EEPROM_OFFSET+RX_num*4;
 					else
@@ -320,7 +320,7 @@ uint16_t ReadAFHDS2A()
 				return 3850;
 			}
 			phase |= AFHDS2A_WAIT_WRITE;
-			return 1700;
+			return AFHDS2A_WRITE_TIME;
 		case AFHDS2A_BIND1|AFHDS2A_WAIT_WRITE:
 		case AFHDS2A_BIND2|AFHDS2A_WAIT_WRITE:
 		case AFHDS2A_BIND3|AFHDS2A_WAIT_WRITE:
@@ -336,7 +336,7 @@ uint16_t ReadAFHDS2A()
 			phase++;
 			if(phase > AFHDS2A_BIND3)
 				phase = AFHDS2A_BIND1;
-			return 2150;
+			return 3850-AFHDS2A_WRITE_TIME;
 		case AFHDS2A_BIND4:
 			AFHDS2A_build_bind_packet();
 			A7105_WriteData(AFHDS2A_TXPACKET_SIZE, packet_count%2 ? 0x0d : 0x8c);
@@ -433,7 +433,7 @@ uint16_t initAFHDS2A()
 	{
 		phase = AFHDS2A_DATA_INIT;
 		//Read RX ID from EEPROM based on RX_num, RX_num must be uniq for each RX
-		uint8_t addr;
+		uint16_t addr;
 		if(RX_num<16)
 			addr=AFHDS2A_EEPROM_OFFSET+RX_num*4;
 		else
