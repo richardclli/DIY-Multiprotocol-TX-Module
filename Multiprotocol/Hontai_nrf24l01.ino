@@ -15,7 +15,7 @@
 
 #if defined(HONTAI_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"	// mix of nrf and xn297 at 1Mb...
 
 #define HONTAI_BIND_COUNT 80
 #define HONTAI_PACKET_PERIOD    13500
@@ -34,40 +34,21 @@ enum{
     HONTAI_FLAG_CALIBRATE = 0x20,
 };
 
-// proudly swiped from http://www.drdobbs.com/implementing-the-ccitt-cyclical-redundan/199904926
-#define HONTAI_POLY 0x8408
-static void __attribute__((unused)) crc16(uint8_t *data_p, uint8_t length)
+static void __attribute__((unused)) HONTAI_send_packet()
 {
-	crc = 0xffff;
-
-	length -= 2;
-	do
-	{
-		for (uint8_t i = 0, data = (uint8_t)*data_p++;
-		i < 8;
-		i++, data >>= 1)
-		{
-			if ((crc & 0x01) ^ (data & 0x01))
-				crc = (crc >> 1) ^ HONTAI_POLY;
-			else
-				crc >>= 1;
-		}
-	} while (--length);
-
-	crc = ~crc;
-	*data_p++ = crc & 0xff;
-	*data_p   = crc >> 8;
-}
-
-static void __attribute__((unused)) HONTAI_send_packet(uint8_t bind)
-{
-	if (bind)
+	if (IS_BIND_IN_PROGRESS)
 	{
 		memcpy(packet, rx_tx_addr, 5);
 		memset(&packet[5], 0, 3);
+		packet_length = HONTAI_BIND_PACKET_SIZE;
 	}
 	else
 	{
+		/*if(sub_protocol == JJRCX1)
+			NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[hopping_frequency_no++]);
+		else*/
+			XN297_Hopping(hopping_frequency_no++);
+		hopping_frequency_no %= 3;
 		memset(packet,0,HONTAI_PACKET_SIZE);
 		packet[3] = convert_channel_16b_limit(THROTTLE, 0, 127) << 1;	// Throttle
 		packet[4] = convert_channel_16b_limit(AILERON, 63, 0);			// Aileron
@@ -125,60 +106,56 @@ static void __attribute__((unused)) HONTAI_send_packet(uint8_t bind)
 				packet[6] |= GET_FLAG(CH9_SW, 0x40);				// Headless
 				break;
 		}
+		packet_length = HONTAI_PACKET_SIZE;
 	}
-	crc16(packet, bind ? HONTAI_BIND_PACKET_SIZE:HONTAI_PACKET_SIZE);
+
+	// CRC 16 bits reflected in and out
+	crc=0xFFFF;
+	for(uint8_t i=0; i< packet_length-2; i++)
+		crc16_update(bit_reverse(packet[i]),8);
+	crc ^= 0xFFFF;
+	packet[packet_length-2]=bit_reverse(crc>>8);
+	packet[packet_length-1]=bit_reverse(crc);
 
 	// Power on, TX mode, 2byte CRC
-	if(sub_protocol == JJRCX1)
+	/*if(sub_protocol == JJRCX1)
+	{
+		NRF24L01_SetPower();
 		NRF24L01_SetTxRxMode(TX_EN);
-	else
-		XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-
-	NRF24L01_WriteReg(NRF24L01_05_RF_CH, bind ? HONTAI_RF_BIND_CHANNEL : hopping_frequency[hopping_frequency_no++]);
-	hopping_frequency_no %= 3;
-
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+		NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
+		NRF24L01_FlushTx();
+	}
+	else*/
+	{
+		XN297_SetPower();
+		XN297_SetTxRxMode(TX_EN);
+	}
 
 	if(sub_protocol == JJRCX1)
-		NRF24L01_WritePayload(packet, bind ? HONTAI_BIND_PACKET_SIZE:HONTAI_PACKET_SIZE);
+		NRF24L01_WritePayload(packet, packet_length);
 	else
-		XN297_WritePayload(packet, bind ? HONTAI_BIND_PACKET_SIZE:HONTAI_PACKET_SIZE);
-
-	NRF24L01_SetPower();
+		XN297_WritePayload(packet, packet_length);
 }
 
-static void __attribute__((unused)) HONTAI_init()
+static void __attribute__((unused)) HONTAI_RF_init()
 {
-	NRF24L01_Initialize();
 
-	NRF24L01_SetTxRxMode(TX_EN);
-
-	if(sub_protocol == JJRCX1)
-		NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, (uint8_t*)"\xd2\xb5\x99\xb3\x4a", 5);
-	else
-		XN297_SetTXAddr((const uint8_t*)"\xd2\xb5\x99\xb3\x4a", 5);
-
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);			// Clear data ready, data sent, and retransmit
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);				// No Auto Acknowldgement on all data pipes
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);					// 1Mbps
-	NRF24L01_SetPower();
-	NRF24L01_Activate(0x73);								// Activate feature register
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);	// this will select the nrf and initialize it, therefore both sub protocols can use common instructions
 	if(sub_protocol == JJRCX1)
 	{
+		//NRF24L01_Initialize();
+		NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, (uint8_t*)"\xd2\xb5\x99\xb3\x4a", 5);
 		NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0xff);	// JJRC uses dynamic payload length
 		NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x3f);			// match other stock settings even though AA disabled...
 		NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x07);
+		//NRF24L01_WriteReg(NRF24L01_05_RF_CH, HONTAI_RF_BIND_CHANNEL);
 	}
 	else
 	{
-		NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00);	// no retransmits
-		NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);			// Disable dynamic payload length on all pipes
-		NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x00);
+		XN297_SetTXAddr((const uint8_t*)"\xd2\xb5\x99\xb3\x4a", 5);
+		//XN297_HoppingCalib(3);
 	}
-	NRF24L01_Activate(0x73);								// Deactivate feature register
+	XN297_RFChannel(HONTAI_RF_BIND_CHANNEL);
 }
 
 const uint8_t PROGMEM HONTAI_hopping_frequency_nonels[][3] = {
@@ -202,9 +179,9 @@ static void __attribute__((unused)) HONTAI_init2()
 	data_tx_addr[3] = pgm_read_byte_near( &HONTAI_addr_vals[3][(rx_tx_addr[4] >> 4) & 0x0f]);
 	data_tx_addr[4] = 0x24;
 	if(sub_protocol == JJRCX1)
-		NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, data_tx_addr, sizeof(data_tx_addr));
+		NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, data_tx_addr, 5);
 	else
-		XN297_SetTXAddr(data_tx_addr, sizeof(data_tx_addr));
+		XN297_SetTXAddr(data_tx_addr, 5);
 
 	//Hopping frequency table
 	for(uint8_t i=0;i<3;i++)
@@ -231,9 +208,11 @@ static void __attribute__((unused)) HONTAI_initialize_txid()
 
 uint16_t HONTAI_callback()
 {
-	if(bind_counter!=0)
+	#ifdef MULTI_SYNC
+		telemetry_set_input_sync(packet_period);
+	#endif
+	if(bind_counter)
 	{
-		HONTAI_send_packet(1);
 		bind_counter--;
 		if (bind_counter == 0)
 		{
@@ -241,24 +220,16 @@ uint16_t HONTAI_callback()
 			BIND_DONE;
 		}
 	}
-	else
-	{
-		#ifdef MULTI_SYNC
-			telemetry_set_input_sync(packet_period);
-		#endif
-		HONTAI_send_packet(0);
-	}
-
+	HONTAI_send_packet();
 	return packet_period;
 }
 
-uint16_t initHONTAI()
+void HONTAI_init()
 {
 	BIND_IN_PROGRESS;	// autobind protocol
 	bind_counter = HONTAI_BIND_COUNT;
 	HONTAI_initialize_txid();
-	HONTAI_init();
+	HONTAI_RF_init();
 	packet_period = sub_protocol == FQ777_951 ? FQ777_951_PACKET_PERIOD : HONTAI_PACKET_PERIOD;
-	return HONTAI_INITIAL_WAIT;
 }
 #endif

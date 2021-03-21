@@ -19,7 +19,7 @@
 
 #if defined(H8_3D_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 #define H8_3D_PACKET_PERIOD		1800
 #define H20H_PACKET_PERIOD		9340
@@ -50,7 +50,7 @@ enum H8_3D_FLAGS_2 {
     H8_3D_FLAG_CAM_UP     = 0x04,
 };
 
-static void __attribute__((unused)) H8_3D_send_packet(uint8_t bind)
+static void __attribute__((unused)) H8_3D_send_packet()
 {
 	if(sub_protocol==H20H)
 		packet[0] = 0x14;
@@ -63,7 +63,7 @@ static void __attribute__((unused)) H8_3D_send_packet(uint8_t bind)
 	packet[4] = rx_tx_addr[3];
 	packet[8] = rx_tx_addr[0]+rx_tx_addr[1]+rx_tx_addr[2]+rx_tx_addr[3]; // txid checksum
 	memset(&packet[9], 0, 10);
-	if (bind)
+	if (IS_BIND_IN_PROGRESS)
 	{    
 		packet[5] = 0x00;
 		packet[6] = 0x00;
@@ -122,18 +122,16 @@ static void __attribute__((unused)) H8_3D_send_packet(uint8_t bind)
 		sum += packet[i];
 	packet[19] = sum; // data checksum
 	
-	// Power on, TX mode, 2byte CRC
-	// Why CRC0? xn297 does not interpret it - either 16-bit CRC or nothing
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
+	// RF channel
 	if(sub_protocol!=H20H)
 	{ // H8_3D, H20MINI, H30MINI
-		NRF24L01_WriteReg(NRF24L01_05_RF_CH, bind ? hopping_frequency[0] : hopping_frequency[hopping_frequency_no++]);
+		XN297_RFChannel(IS_BIND_IN_PROGRESS ? hopping_frequency[0] : hopping_frequency[hopping_frequency_no++]);
 		hopping_frequency_no %= H8_3D_RF_NUM_CHANNELS;
 	}
 	else
-	{ //H20H
-		NRF24L01_WriteReg(NRF24L01_05_RF_CH, bind ? H20H_BIND_RF : hopping_frequency[packet_count>>3]);  
-		if(!bind)
+	{ // H20H
+		XN297_RFChannel(IS_BIND_IN_PROGRESS ? H20H_BIND_RF : hopping_frequency[packet_count>>3]);  
+		if(IS_BIND_DONE)
 		{
 			packet_count++;
 			if(packet_count>15)
@@ -147,55 +145,39 @@ static void __attribute__((unused)) H8_3D_send_packet(uint8_t bind)
 		}
 	}
 	
-	// clear packet status bits and TX FIFO
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, H8_3D_PACKET_SIZE);
-
-	NRF24L01_SetPower();	// Set tx_power
 }
 
-static void __attribute__((unused)) H8_3D_init()
+static void __attribute__((unused)) H8_3D_RF_init()
 {
-    NRF24L01_Initialize();
-    NRF24L01_SetTxRxMode(TX_EN);
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
+
 	if(sub_protocol==H20H)
 		XN297_SetTXAddr((uint8_t *)"\xEE\xDD\xCC\xBB\x11", 5);
 	else // H8_3D, H20MINI, H30MINI
 		XN297_SetTXAddr((uint8_t *)"\xC4\x57\x09\x65\x21", 5);
-
-    NRF24L01_FlushTx();
-    NRF24L01_FlushRx();
-    NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);     // Clear data ready, data sent, and retransmit
-    NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      // No Auto Acknowldgement on all data pipes
-    NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);  // Enable data pipe 0 only
-    NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00); // no retransmits
-    NRF24L01_SetBitrate(NRF24L01_BR_1M);             // 1Mbps
-    NRF24L01_SetPower();
 }
 
 uint16_t H8_3D_callback()
 {
-	if(IS_BIND_DONE)
+	if(bind_counter)
 	{
-		#ifdef MULTI_SYNC
-			telemetry_set_input_sync(packet_period);
-		#endif
-		H8_3D_send_packet(0);
-	}
-	else
-	{
+		bind_counter--;
 		if (bind_counter == 0)
 		{
 			BIND_DONE;
 			packet_count=0;
 		}
-		else
-		{
-			H8_3D_send_packet(1);
-			bind_counter--;
-		}
 	}
+	#ifdef MULTI_SYNC
+	else
+		telemetry_set_input_sync(packet_period);
+	#endif
+
+	H8_3D_send_packet();
 	return	packet_period;
 }
 
@@ -238,12 +220,12 @@ static void __attribute__((unused)) H8_3D_initialize_txid()
 	}
 }
 
-uint16_t initH8_3D(void)
+void H8_3D_init(void)
 {
 	BIND_IN_PROGRESS;	// autobind protocol
     bind_counter = H8_3D_BIND_COUNT;
 	H8_3D_initialize_txid();
-	H8_3D_init();
+	H8_3D_RF_init();
 	switch(sub_protocol)
 	{
         case H8_3D:
@@ -257,7 +239,6 @@ uint16_t initH8_3D(void)
 			packet_period=H20MINI_PACKET_PERIOD;
 			break;
 	}
-	return	H8_3D_INITIAL_WAIT;
 }
 
 #endif

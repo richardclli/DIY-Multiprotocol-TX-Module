@@ -16,7 +16,7 @@
 
 #if defined(JJRC345_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 //#define JJRC345_FORCE_ID
 
@@ -71,7 +71,7 @@ static void __attribute__((unused)) JJRC345_send_packet()
 	}
 	else
 	{ //00 41 00 0A 00 80 80 80 00 00 40 46 00 49 F1 18
-		NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[hopping_frequency_no]);
+		XN297_Hopping(hopping_frequency_no);
 		hopping_frequency_no++;
 		hopping_frequency_no %= JJRC345_NUM_CHANNELS;
 		packet[1]  = hopping_frequency[hopping_frequency_no];	// next packet will be sent on this channel
@@ -121,28 +121,18 @@ static void __attribute__((unused)) JJRC345_send_packet()
 	packet[14] = rx_tx_addr[2];
 	packet[15] = rx_tx_addr[3];
 
-	// Power on, TX mode
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, JJRC345_PACKET_SIZE);
-
-	NRF24L01_SetPower();	// Set tx_power
 }
 
-static void __attribute__((unused)) JJRC345_init()
+static void __attribute__((unused)) JJRC345_RF_init()
 {
-    NRF24L01_Initialize();
-    NRF24L01_SetTxRxMode(TX_EN);
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
     XN297_SetTXAddr((uint8_t*)"\xcc\xcc\xcc\xcc\xcc", 5);
-    NRF24L01_WriteReg(NRF24L01_05_RF_CH, sub_protocol == JJRC345 ? JJRC345_RF_BIND_CHANNEL:SKYTMBLR_RF_BIND_CHANNEL);	// Bind channel
-    NRF24L01_FlushTx();
-    NRF24L01_FlushRx();
-    NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);					// Clear data ready, data sent, and retransmit
-    NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);						// No Auto Acknowldgement on all data pipes
-    NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);					// Enable data pipe 0 only
-    NRF24L01_SetBitrate(NRF24L01_BR_1M);							// 1 Mbps
-    NRF24L01_SetPower();
+	//XN297_HoppingCalib(JJRC345_NUM_CHANNELS);
+	XN297_RFChannel(sub_protocol == JJRC345 ? JJRC345_RF_BIND_CHANNEL:SKYTMBLR_RF_BIND_CHANNEL);	// Bind channel
 }
 
 uint16_t JJRC345_callback()
@@ -150,11 +140,10 @@ uint16_t JJRC345_callback()
 	#ifdef MULTI_SYNC
 		telemetry_set_input_sync(JJRC345_PACKET_PERIOD);
 	#endif
-	if(IS_BIND_IN_PROGRESS)
+	if(bind_counter)
 	{
-		if (bind_counter)
-			bind_counter--;
-		else
+		bind_counter--;
+		if (bind_counter==0)
 			BIND_DONE;
 	}
 	JJRC345_send_packet();
@@ -183,13 +172,12 @@ static void __attribute__((unused)) JJRC345_initialize_txid()
 	#endif
 }
 
-uint16_t initJJRC345(void)
+void JJRC345_init(void)
 {
 	BIND_IN_PROGRESS;	// autobind protocol
     bind_counter = JJRC345_BIND_COUNT;
 	JJRC345_initialize_txid();
-	JJRC345_init();
-	return	JJRC345_INITIAL_WAIT;
+	JJRC345_RF_init();
 }
 
 #endif

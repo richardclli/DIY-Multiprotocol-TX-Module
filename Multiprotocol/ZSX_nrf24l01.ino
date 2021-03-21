@@ -16,7 +16,7 @@ Multiprotocol is distributed in the hope that it will be useful,
 
 #if defined(ZSX_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 //#define FORCE_ZSX_ORIGINAL_ID
 
@@ -44,12 +44,10 @@ static void __attribute__((unused)) ZSX_send_packet()
 				| GET_FLAG(CH5_SW, 0x80);				// Light
 	}
 
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, ZSX_PAYLOAD_SIZE);
-
-	NRF24L01_SetPower();		// Set tx_power
 }
 
 static void __attribute__((unused)) ZSX_initialize_txid()
@@ -63,19 +61,11 @@ static void __attribute__((unused)) ZSX_initialize_txid()
 	#endif
 }
 
-static void __attribute__((unused)) ZSX_init()
+static void __attribute__((unused)) ZSX_RF_init()
 {
-	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);	// Clear data ready, data sent, and retransmit
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);		// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);	// Enable data pipe 0 only
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);			// 1Mbps
-	NRF24L01_SetPower();
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
 	XN297_SetTXAddr((uint8_t*)"\xc1\xc2\xc3", 3);
-	NRF24L01_WriteReg(NRF24L01_05_RF_CH, ZSX_RF_BIND_CHANNEL);	// Set bind channel
+	XN297_RFChannel(ZSX_RF_BIND_CHANNEL);	// Set bind channel
 }
 
 uint16_t ZSX_callback()
@@ -83,29 +73,28 @@ uint16_t ZSX_callback()
 	#ifdef MULTI_SYNC
 		telemetry_set_input_sync(ZSX_PACKET_PERIOD);
 	#endif
-	if(IS_BIND_IN_PROGRESS)
+	if(bind_counter)
 		if(--bind_counter==0)
 		{
 			BIND_DONE;
 			XN297_SetTXAddr(rx_tx_addr, 3);
-			NRF24L01_WriteReg(NRF24L01_05_RF_CH, 0x00);
+			XN297_RFChannel(0x00);
 		}
 	ZSX_send_packet();
 	return ZSX_PACKET_PERIOD;
 }
 
-uint16_t initZSX()
+void ZSX_init()
 {
 	BIND_IN_PROGRESS;	// autobind protocol
 	ZSX_initialize_txid();
-	ZSX_init();
+	ZSX_RF_init();
 	bind_counter=ZSX_BIND_COUNT;
-	return ZSX_INITIAL_WAIT;
 }
 
 #endif
 
-// XN297 spped 1Mb, scrambled
+// XN297 speed 1Mb, scrambled
 // Bind
 //   channel 7
 //   address: C1 C2 C3

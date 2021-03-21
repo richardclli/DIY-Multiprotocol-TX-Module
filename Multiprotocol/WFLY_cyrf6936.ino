@@ -105,28 +105,35 @@ static uint16_t __attribute__((unused)) WFLY_send_data_packet()
 		len=4;
 		for(uint8_t i=0;i<3;i++)
 		{ // Channels
-			uint16_t ch = convert_channel_16b_nolimit(i*4+0,151,847,false);
+			uint16_t ch = convert_channel_16b_nolimit(i*4+0,151,847,IS_FAILSAFE_VALUES_on);
 			uint8_t offset=i*5;
-			packet[3+offset]|=ch<<6;
-			packet[4+offset]=ch>>2;
+			packet[3+offset] |= ch<<6;
+			packet[4+offset]  = ch>>2;
 			len++;
 			if(--nbr_ch==0) break;
-			ch = convert_channel_16b_nolimit(i*4+1,151,847,false);
-			packet[5+offset]=ch;
-			packet[6+offset]=ch>>8;
+			ch = convert_channel_16b_nolimit(i*4+1,151,847,IS_FAILSAFE_VALUES_on);
+			packet[5+offset]  = ch;
+			packet[6+offset]  = ch>>8;
 			len+=2;
 			if(--nbr_ch==0) break;
-			ch = convert_channel_16b_nolimit(i*4+2,151,847,false);
-			packet[6+offset]|=ch<<2;
-			packet[7+offset]=ch>>6;
+			ch = convert_channel_16b_nolimit(i*4+2,151,847,IS_FAILSAFE_VALUES_on);
+			packet[6+offset] |= ch<<2;
+			packet[7+offset]  = ch>>6;
 			len++;
 			if(--nbr_ch==0) break;
-			ch = convert_channel_16b_nolimit(i*4+3,151,847,false);
-			packet[7+offset]|=ch<<4;
-			packet[8+offset]=ch>>4;
+			ch = convert_channel_16b_nolimit(i*4+3,151,847,IS_FAILSAFE_VALUES_on);
+			packet[7+offset] |= ch<<4;
+			packet[8+offset]  = ch>>4;
 			len++;
 			if(--nbr_ch==0) break;
 		}
+		#ifdef FAILSAFE_ENABLE
+			if(IS_FAILSAFE_VALUES_on)
+			{
+				packet[2] |= 0x10;			// 19 times 3 times 0x10 followed by 3 times 0x18 and so on but 1 time 0x10 seems to be enough for the RX to learn
+				FAILSAFE_VALUES_off;
+			}
+		#endif
 	}
 
 	uint8_t sum=0;
@@ -150,7 +157,7 @@ static uint16_t __attribute__((unused)) WFLY_send_data_packet()
 	return 1093;	// case 3
 }
 
-uint16_t ReadWFLY()
+uint16_t WFLY_callback()
 {
 	uint8_t status,len,sum=0,check=0;
 	uint8_t start;
@@ -244,13 +251,13 @@ uint16_t ReadWFLY()
 	return 1000;
 }
 
-uint16_t initWFLY()
+void WFLY_init()
 { 
 	//Random start channel
 	uint8_t ch=0x0A+random(0xfefefefe)%0x0E;
 	if(ch%3==0)
 		ch++;								// remove these channels as they seem to not be working...
-	rf_ch_num=0x0C+(rx_tx_addr[1]%4)*3;		// use the start channels which do not seem to work to send the hopping table instead
+	rf_ch_num=0x0C+(rx_tx_addr[1]&0x03)*3;	// use the start channels which do not seem to work to send the hopping table instead
 	
 	#ifdef WFLY_FORCE_ID					// data taken from TX dump
 		rx_tx_addr[2]=0xBF;					// ID
@@ -291,7 +298,6 @@ uint16_t initWFLY()
 	}
 	else
 		phase = WFLY_PREP_DATA;
-	return 10000;
 }
 
 #endif

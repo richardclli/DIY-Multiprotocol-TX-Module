@@ -33,19 +33,14 @@ enum {
     ASSAN_DATA5
 };
 
-void ASSAN_init()
+void ASSAN_RF_init()
 {
     NRF24L01_Initialize();
+	//Specifics to ASSAN
     NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x02);			// 4 bytes rx/tx address
-	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, (uint8_t *)"\x80\x80\x80\xB8", ASSAN_ADDRESS_LENGTH);		// Bind address
+	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR,    (uint8_t *)"\x80\x80\x80\xB8", ASSAN_ADDRESS_LENGTH);	// Bind address
 	NRF24L01_WriteRegisterMulti(NRF24L01_0A_RX_ADDR_P0, (uint8_t *)"\x80\x80\x80\xB8", ASSAN_ADDRESS_LENGTH);	// Bind address
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-    NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);			// Clear data ready, data sent, and retransmit
-    NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);				// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);			// Enable data pipe 0 only
 	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, ASSAN_PACKET_SIZE);
-    NRF24L01_SetPower();
 }
 
 void ASSAN_send_packet()
@@ -169,17 +164,16 @@ static void __attribute__((unused)) ASSAN_initialize_txid()
 	hopping_frequency[1]=freq2;
 }
 
-uint16_t initASSAN()
+void ASSAN_init()
 {
 	ASSAN_initialize_txid();
-	ASSAN_init();
+	ASSAN_RF_init();
 	hopping_frequency_no = 0;
 
 	if(IS_BIND_IN_PROGRESS)
 		phase=ASSAN_BIND0;
 	else 
 		phase=ASSAN_DATA0;
-	return 1000;
 }
 
 #endif

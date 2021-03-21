@@ -14,9 +14,9 @@ Multiprotocol is distributed in the hope that it will be useful,
  */
 // Compatible with Q90C quad.
 
-#if defined(Q90C_NRF24L01_INO)
+#if defined(Q90C_CCNRF_INO)
 
-#include "iface_nrf250k.h"
+#include "iface_xn297.h"
 
 //#define FORCE_Q90C_ORIGINAL_ID
 
@@ -51,7 +51,7 @@ static void __attribute__((unused)) Q90C_send_packet()
 	}
 	else
 	{
-		XN297L_Hopping(hopping_frequency_no++);				// RF Freq
+		XN297_Hopping(hopping_frequency_no++);				// RF Freq
 		hopping_frequency_no %= Q90C_RF_NUM_CHANNELS;
 		packet[0]= convert_channel_8b(THROTTLE);			// 0..255
 		// A,E,R have weird scaling, 0x00-0xff range (unsigned) but center isn't 7f or 80
@@ -108,9 +108,11 @@ static void __attribute__((unused)) Q90C_send_packet()
 		packet[11] = sum ^ crc8;
 	}
 
-	XN297L_SetFreqOffset();									// Set frequency offset
-	XN297L_SetPower();										// Set tx_power
-	XN297L_WriteEnhancedPayload(packet, Q90C_PACKET_SIZE, 0);
+	// Send
+	XN297_SetFreqOffset();									// Set frequency offset
+	XN297_SetPower();										// Set tx_power
+	XN297_SetTxRxMode(TX_EN);
+	XN297_WriteEnhancedPayload(packet, Q90C_PACKET_SIZE, 0);
 }
 
 static void __attribute__((unused)) Q90C_initialize_txid()
@@ -131,15 +133,15 @@ static void __attribute__((unused)) Q90C_initialize_txid()
 	crc8=rx_tx_addr[0]^rx_tx_addr[1]^rx_tx_addr[2]^rx_tx_addr[3];
 }
 
-static void __attribute__((unused)) Q90C_init()
+static void __attribute__((unused)) Q90C_RF_init()
 {
-	XN297L_Init();
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_250K);
 	if(IS_BIND_IN_PROGRESS)
-		XN297L_SetTXAddr((uint8_t*)"\x4F\x43\x54\x81\x81", Q90C_ADDRESS_LENGTH);
+		XN297_SetTXAddr((uint8_t*)"\x4F\x43\x54\x81\x81", Q90C_ADDRESS_LENGTH);
 	else
-		XN297L_SetTXAddr(rx_tx_addr, Q90C_ADDRESS_LENGTH);
-	XN297L_HoppingCalib(Q90C_RF_NUM_CHANNELS);				// Calibrate all channels
-	XN297L_RFChannel(Q90C_RF_BIND_CHANNEL);					// Set bind channel
+		XN297_SetTXAddr(rx_tx_addr, Q90C_ADDRESS_LENGTH);
+	XN297_HoppingCalib(Q90C_RF_NUM_CHANNELS);				// Calibrate all channels
+	XN297_RFChannel(Q90C_RF_BIND_CHANNEL);					// Set bind channel
 }
 
 uint16_t Q90C_callback()
@@ -147,20 +149,20 @@ uint16_t Q90C_callback()
 	#ifdef MULTI_SYNC
 		telemetry_set_input_sync(Q90C_PACKET_PERIOD);
 	#endif
-	if(IS_BIND_IN_PROGRESS)
+	if(bind_counter)
 		if(--bind_counter==0)
 		{
 			BIND_DONE;
-			XN297L_SetTXAddr(rx_tx_addr, Q90C_ADDRESS_LENGTH);
+			XN297_SetTXAddr(rx_tx_addr, Q90C_ADDRESS_LENGTH);
 		}
 	Q90C_send_packet();
 	return Q90C_PACKET_PERIOD;
 }
 
-uint16_t initQ90C()
+void Q90C_init()
 {
 	Q90C_initialize_txid();
-	Q90C_init();
+	Q90C_RF_init();
 	hopping_frequency_no = 0;
 	packet_count = 0;
 	bind_counter=Q90C_BIND_COUNT;
@@ -170,7 +172,6 @@ uint16_t initQ90C()
 	Q90C_VTX=CH6_SW;
 	packet[8]  = 0x00;
 	packet[9]  = 0x00;
-	return Q90C_INITIAL_WAIT;
 }
 
 #endif

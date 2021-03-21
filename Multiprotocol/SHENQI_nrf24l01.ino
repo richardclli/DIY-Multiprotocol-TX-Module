@@ -29,15 +29,9 @@ const uint8_t PROGMEM SHENQI_Freq[] = {
 			10,60,10,50,30,40,
 			20,10,40,30,60,20 };
 
-void SHENQI_init()
+void SHENQI_RF_init()
 {
     NRF24L01_Initialize();
-    NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);		// Clear data ready, data sent, and retransmit
-    NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);			// No Auto Acknowldgement on all data pipes
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);          // 1Mbps
-    NRF24L01_SetPower();
-
-    NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);		// 5 bytes rx/tx address
 
 	LT8900_Config(4, 8, _BV(LT8900_CRC_ON)|_BV(LT8900_PACKET_LENGTH_EN), 0xAA);
 	LT8900_SetChannel(2);
@@ -116,14 +110,13 @@ uint16_t SHENQI_callback()
     return packet_period;
 }
 
-uint16_t initSHENQI()
+void SHENQI_init()
 {
 	BIND_IN_PROGRESS;	// autobind protocol
-	SHENQI_init();
+	SHENQI_RF_init();
 	hopping_frequency_no = 0;
 	packet_count=0;
 	packet_period=500;
-	return 1000;
 }
 
 #endif

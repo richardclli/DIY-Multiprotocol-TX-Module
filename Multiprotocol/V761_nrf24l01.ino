@@ -15,7 +15,7 @@ Multiprotocol is distributed in the hope that it will be useful,
 
 #if defined(V761_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 //#define V761_FORCE_ID
 
@@ -115,30 +115,16 @@ static void __attribute__((unused)) V761_send_packet()
 			hopping_frequency_no = 0;
 	}
 	V761_set_checksum();
-	// Power on, TX mode, 2byte CRC
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, V761_PACKET_SIZE);
-	NRF24L01_SetPower();
 }
 
-static void __attribute__((unused)) V761_init()
+static void __attribute__((unused)) V761_RF_init()
 {
-	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);			// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);		// Enable data pipe 0 only
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x02);		// set address length (4 bytes)
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00);	// no retransmits
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);				// 1Mbps
-	NRF24L01_SetPower();
-	NRF24L01_Activate(0x73);							// Activate feature register
-	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);			// Disable dynamic payload length on all pipes
-	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x01);
-	NRF24L01_Activate(0x73);
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
 }
 
 static void __attribute__((unused)) V761_initialize_txid()
@@ -187,7 +173,7 @@ uint16_t V761_callback()
 			if(bind_counter) 
 				bind_counter--;
 			packet_count ++;
-			NRF24L01_WriteReg(NRF24L01_05_RF_CH, V761_BIND_FREQ);
+			XN297_RFChannel(V761_BIND_FREQ);
 			XN297_SetTXAddr((uint8_t*)"\x34\x43\x10\x10", 4);
 			V761_send_packet();
 			if(packet_count >= 20) 
@@ -200,7 +186,7 @@ uint16_t V761_callback()
 			if(bind_counter) 
 				bind_counter--;
 			packet_count ++;
-			NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[0]);
+			XN297_Hopping(0);
 			XN297_SetTXAddr(rx_tx_addr, 4);
 			V761_send_packet();
 			if(bind_counter == 0) 
@@ -224,7 +210,7 @@ uint16_t V761_callback()
 	return V761_PACKET_PERIOD;
 }
 
-uint16_t initV761(void)
+void V761_init(void)
 {
 	V761_initialize_txid();
 	if(IS_BIND_IN_PROGRESS)
@@ -238,10 +224,9 @@ uint16_t initV761(void)
 		phase = V761_DATA;
 	}
 		
-	V761_init();
+	V761_RF_init();
 	hopping_frequency_no = 0;
 	packet_count = 0;
-	return	V761_INITIAL_WAIT;
 }
 
 #endif

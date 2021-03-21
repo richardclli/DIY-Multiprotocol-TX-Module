@@ -81,11 +81,11 @@ static void __attribute__((unused)) ssv_pack_dpl(uint8_t addr[], uint8_t pid, ui
 	*len += 4;
 }
 
-static void __attribute__((unused)) FQ777_send_packet(uint8_t bind)
+static void __attribute__((unused)) FQ777_send_packet()
 {
 	uint8_t packet_len = FQ777_PACKET_SIZE;
 	uint8_t packet_ori[8];
-	if (bind)
+	if (IS_BIND_IN_PROGRESS)
 	{
 		// 4,5,6 = address fields
 		// last field is checksum of address fields
@@ -138,7 +138,7 @@ static void __attribute__((unused)) FQ777_send_packet(uint8_t bind)
 		packet_count++;
 	}
 
-	ssv_pack_dpl( (0 == bind) ? rx_tx_addr : FQ777_bind_addr, hopping_frequency_no, &packet_len, packet_ori, packet);
+	ssv_pack_dpl( IS_BIND_IN_PROGRESS ? FQ777_bind_addr : rx_tx_addr, hopping_frequency_no, &packet_len, packet_ori, packet);
 	
 	NRF24L01_WriteReg(NRF24L01_00_CONFIG,_BV(NRF24L01_00_PWR_UP));
 	NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[hopping_frequency_no++]);
@@ -150,30 +150,21 @@ static void __attribute__((unused)) FQ777_send_packet(uint8_t bind)
 	NRF24L01_WritePayload(packet, packet_len);
 }
 
-static void __attribute__((unused)) FQ777_init()
+static void __attribute__((unused)) FQ777_RF_init()
 {
 	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
+
 	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, FQ777_bind_addr, 5);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      // No Auto Acknowledgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x00);
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00); // no retransmits
 	NRF24L01_SetBitrate(NRF24L01_BR_250K);
-	NRF24L01_SetPower();
-    NRF24L01_Activate(0x73);                         // Activate feature register
-    NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);      // Disable dynamic payload length on all pipes
-    NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x01);
-    NRF24L01_Activate(0x73);
 }
 
 uint16_t FQ777_callback()
 {
-	if(bind_counter!=0)
+	#ifdef MULTI_SYNC
+		telemetry_set_input_sync(FQ777_PACKET_PERIOD);
+	#endif
+	if(bind_counter)
 	{
-		FQ777_send_packet(1);
 		bind_counter--;
 		if (bind_counter == 0)
 		{
@@ -181,17 +172,11 @@ uint16_t FQ777_callback()
 			BIND_DONE;
 		}
 	}
-	else
-	{
-		#ifdef MULTI_SYNC
-			telemetry_set_input_sync(FQ777_PACKET_PERIOD);
-		#endif
-		FQ777_send_packet(0);
-	}
+	FQ777_send_packet();
 	return FQ777_PACKET_PERIOD;
 }
 
-uint16_t initFQ777(void)
+void FQ777_init(void)
 {
 	BIND_IN_PROGRESS;	// autobind protocol
 	bind_counter = FQ777_BIND_COUNT;
@@ -204,8 +189,7 @@ uint16_t initFQ777(void)
 	rx_tx_addr[2] = 0x00;
 	rx_tx_addr[3] = 0xe7;
 	rx_tx_addr[4] = 0x67;
-	FQ777_init();
-	return	FQ777_INITIAL_WAIT;
+	FQ777_RF_init();
 }
 
 #endif

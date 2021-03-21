@@ -35,14 +35,10 @@ static void __attribute__((unused)) ESKY_set_data_address()
 	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR,    rx_tx_addr, 4);
 }
 
-static void __attribute__((unused)) ESKY_init()
+static void __attribute__((unused)) ESKY_RF_init()
 {
 	NRF24L01_Initialize();
 
-	// 2-bytes CRC, radio off
-	NRF24L01_WriteReg(NRF24L01_00_CONFIG, _BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO)); 
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);            // No Auto Acknowledgement
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);        // Enable data pipe 0
 	if (IS_BIND_IN_PROGRESS)
 	{
 		NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x01);     // 3-byte RX/TX address for bind packets
@@ -51,11 +47,7 @@ static void __attribute__((unused)) ESKY_init()
 	}
 	else
 		ESKY_set_data_address();
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0);          // No auto retransmission
 	NRF24L01_WriteReg(NRF24L01_05_RF_CH, 50);              // Channel 50 for bind packets
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);                   // 1Mbps
-	NRF24L01_SetPower();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);           // Clear data ready, data sent, and retransmit
 	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, ESKY_PAYLOAD_SIZE);  // bytes of data payload for pipe 0
 	NRF24L01_WriteReg(NRF24L01_12_RX_PW_P1, ESKY_PAYLOAD_SIZE);
 	NRF24L01_WriteReg(NRF24L01_13_RX_PW_P2, ESKY_PAYLOAD_SIZE);
@@ -65,7 +57,7 @@ static void __attribute__((unused)) ESKY_init()
 	NRF24L01_WriteReg(NRF24L01_17_FIFO_STATUS, 0x00);      // Just in case, no real bits to write here
 }
 
-static void __attribute__((unused)) ESKY_init2()
+static void __attribute__((unused)) ESKY_TXID_init()
 {
 	NRF24L01_FlushTx();
 	if(sub_protocol==ESKY_STD)
@@ -187,7 +179,7 @@ uint16_t ESKY_callback()
 	return ESKY_STD_PACKET_PERIOD;
 }
 
-uint16_t initESKY(void)
+void ESKY_init(void)
 {
 	bind_counter = ESKY_BIND_COUNT;
 	rx_tx_addr[2] = rx_tx_addr[3];	// Model match
@@ -200,10 +192,9 @@ uint16_t initESKY(void)
 	  }
 	#endif
 	rx_tx_addr[3] = 0xBB;
-	ESKY_init();
-	ESKY_init2();
+	ESKY_RF_init();
+	ESKY_TXID_init();
 	packet_count=0;
-	return 50000;
 }
 
 #endif

@@ -19,7 +19,7 @@
 
 uint8_t RetrySequence ;
 
-#if ( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) )
+#ifdef MULTI_TELEMETRY
 	uint32_t lastMulti = 0;
 	#define MULTI_TIME				500	//in ms
 	#ifdef MULTI_SYNC
@@ -28,7 +28,7 @@ uint8_t RetrySequence ;
 		uint32_t lastInputSync = 0;
 		uint16_t inputDelay = 0;
 	#endif // MULTI_SYNC
-#endif // MULTI_TELEMETRY/MULTI_STATUS
+#endif // MULTI_TELEMETRY
 
 #if defined SPORT_TELEMETRY	
 	#define FRSKY_SPORT_PACKET_SIZE   8
@@ -53,6 +53,14 @@ uint8_t RetrySequence ;
 #if defined HUB_TELEMETRY
 	#define USER_MAX_BYTES 6
 	uint8_t prev_index;
+
+	struct t_FrSkyD_User_Frame
+	{
+		uint8_t ID;
+		uint8_t low;
+		uint8_t high;
+	} FrSkyD_User_Frame[8];
+	uint8_t FrSkyD_User_Frame_Start=0, FrSkyD_User_Frame_End=0;
 #endif // HUB_TELEMETRY
 
 #define START_STOP	0x7e
@@ -62,16 +70,12 @@ uint8_t RetrySequence ;
 uint8_t pktx[MAX_PKTX];
 uint8_t frame[18];
 
-#if ( defined(MULTI_TELEMETRY) || defined(MULTI_STATUS) )
+#ifdef MULTI_TELEMETRY
 static void multi_send_header(uint8_t type, uint8_t len)
 {
 	Serial_write('M');
-	#ifdef MULTI_TELEMETRY
-		Serial_write('P');
-		Serial_write(type);
-	#else
-		(void)type;
-	#endif
+	Serial_write('P');
+	Serial_write(type);
 	Serial_write(len);
 }
 
@@ -119,15 +123,7 @@ static void telemetry_set_input_sync(uint16_t refreshRate)
 
 static void multi_send_status()
 {
-	#ifdef MULTI_TELEMETRY
-		#ifdef MULTI_NAMES
-			multi_send_header(MULTI_TELEMETRY_STATUS, 24);
-		#else
-			multi_send_header(MULTI_TELEMETRY_STATUS, 5);
-		#endif
-	#else
-		multi_send_header(MULTI_TELEMETRY_STATUS, 5);
-	#endif
+	multi_send_header(MULTI_TELEMETRY_STATUS, 24);
 
 	// Build flags
 	uint8_t flags=0;
@@ -138,34 +134,36 @@ static void multi_send_status()
 	if (remote_callback != 0)
 	{
 		flags |= 0x04;
-		#ifdef MULTI_NAMES
-			if(multi_protocols_index == 0xFF)
-			{
-				if(protocol!=PROTO_SCANNER)
-					flags &= ~0x04;			//Invalid protocol
-			}
-			else if(sub_protocol&0x07)
-				{
-					uint8_t nbr=multi_protocols[multi_protocols_index].nbrSubProto;
-					//if(protocol==PROTO_DSM) nbr++;	//Auto sub_protocol
-					if((sub_protocol&0x07)>=nbr)
-						flags &= ~0x04;		//Invalid sub protocol
-				}
-		#else
-			if(remote_callback==0)
+		if(multi_protocols_index == 0xFF)
+		{
+			if(protocol!=PROTO_SCANNER)
 				flags &= ~0x04;			//Invalid protocol
-		#endif
+		}
+		else if(IS_SUB_PROTO_INVALID)
+		{
+			flags &= ~0x04;				//Invalid sub protocol
+		}
+		else if(sub_protocol&0x07)
+			{
+				uint8_t nbr=multi_protocols[multi_protocols_index].nbrSubProto;
+				//if(protocol==PROTO_DSM) nbr++;	//Auto sub_protocol
+				if((sub_protocol&0x07)>=nbr )
+					flags &= ~0x04;		//Invalid sub protocol
+			}
 		if (IS_WAIT_BIND_on)
 			flags |= 0x10;
 		else
 			if (IS_BIND_IN_PROGRESS)
 				flags |= 0x08;
-		if(IS_CHMAP_PROTOCOL)
-			flags |= 0x40;				//Disable_ch_mapping supported
-		#ifdef FAILSAFE_ENABLE
-			if(IS_FAILSAFE_PROTOCOL)
-				flags |= 0x20;			//Failsafe supported
-		#endif
+		if(multi_protocols_index != 0xFF)
+		{
+			if(multi_protocols[multi_protocols_index].chMap)
+				flags |= 0x40;				//Disable_ch_mapping supported
+			#ifdef FAILSAFE_ENABLE
+				if(multi_protocols[multi_protocols_index].failSafe)
+					flags |= 0x20;			//Failsafe supported
+			#endif
+		}
 		if(IS_DATA_BUFFER_LOW_on)
 			flags |= 0x80;
 	}
@@ -177,89 +175,112 @@ static void multi_send_status()
 	Serial_write(VERSION_REVISION);
 	Serial_write(VERSION_PATCH_LEVEL);
 
-	#ifdef MULTI_TELEMETRY
-		// Channel order
-		Serial_write(RUDDER<<6|THROTTLE<<4|ELEVATOR<<2|AILERON);
-	#endif
+	// Channel order
+	Serial_write(RUDDER<<6|THROTTLE<<4|ELEVATOR<<2|AILERON);
 	
-	#ifdef MULTI_NAMES
-		if(multi_protocols_index == 0xFF)												// selection out of list... send first available protocol
+	if(multi_protocols_index == 0xFF)													// selection out of list... send first available protocol
+	{
+		Serial_write(multi_protocols[0].protocol);										// begining of list
+		Serial_write(multi_protocols[0].protocol);										// begining of list
+		for(uint8_t i=0;i<16;i++)
+			Serial_write(0x00);															// everything else is invalid
+	}
+	else
+	{
+		// Protocol next/prev
+		if(multi_protocols[multi_protocols_index+1].protocol != 0xFF)
 		{
-			Serial_write(multi_protocols[0].protocol);									// begining of list
-			Serial_write(multi_protocols[0].protocol);									// begining of list
-			for(uint8_t i=0;i<16;i++)
-				Serial_write(0x00);														// everything else is invalid
+			if(multi_protocols[multi_protocols_index+1].protocol == PROTO_SCANNER)
+			{// if next is scanner
+				if(multi_protocols[multi_protocols_index+2].protocol != 0xFF)
+					Serial_write(multi_protocols[multi_protocols_index+2].protocol);	// skip to next protocol number
+				else
+					Serial_write(multi_protocols[multi_protocols_index].protocol);		// or end of list
+			}
+			else
+				Serial_write(multi_protocols[multi_protocols_index+1].protocol);		// next protocol number
 		}
 		else
+			Serial_write(multi_protocols[multi_protocols_index].protocol);				// end of list
+		if(multi_protocols_index>0 && multi_protocols[multi_protocols_index-1].protocol != 0)
 		{
-			// Protocol next/prev
-			if(multi_protocols[multi_protocols_index+1].protocol != 0)
-				Serial_write(multi_protocols[multi_protocols_index+1].protocol);		// next protocol number
-			else
-				Serial_write(multi_protocols[multi_protocols_index].protocol);			// end of list
-			if(multi_protocols_index>0)
-				Serial_write(multi_protocols[multi_protocols_index-1].protocol);		// prev protocol number
-			else
-				Serial_write(multi_protocols[multi_protocols_index].protocol);			// begining of list
-			// Protocol
-			for(uint8_t i=0;i<7;i++)
-				Serial_write(multi_protocols[multi_protocols_index].ProtoString[i]);	// protocol name
-			// Sub-protocol
-			uint8_t nbr=multi_protocols[multi_protocols_index].nbrSubProto;
-			Serial_write(nbr | (multi_protocols[multi_protocols_index].optionType<<4));	// number of sub protocols && option type
-			uint8_t j=0;
-			if(nbr && (sub_protocol&0x07)<nbr)
-			{
-				uint8_t len=multi_protocols[multi_protocols_index].SubProtoString[0];
-				uint8_t offset=len*(sub_protocol&0x07)+1;
-				for(;j<len;j++)
-					Serial_write(multi_protocols[multi_protocols_index].SubProtoString[j+offset]);	// current sub protocol name
+			if(multi_protocols[multi_protocols_index-1].protocol==PROTO_SCANNER)
+			{// if prev is scanner
+				if(multi_protocols_index > 1)
+					Serial_write(multi_protocols[multi_protocols_index-2].protocol);	// skip to prev protocol number
+				else
+					Serial_write(multi_protocols[multi_protocols_index].protocol);		// begining of list
 			}
-			for(;j<8;j++)
-				Serial_write(0x00);
+			else
+				Serial_write(multi_protocols[multi_protocols_index-1].protocol);		// prev protocol number
 		}
-		// Channels function
-		//TODO
-	#endif
+		else
+			Serial_write(multi_protocols[multi_protocols_index].protocol);				// begining of list
+		// Protocol
+		for(uint8_t i=0;i<7;i++)
+			Serial_write(multi_protocols[multi_protocols_index].ProtoString[i]);		// protocol name
+		// Sub-protocol
+		uint8_t nbr=multi_protocols[multi_protocols_index].nbrSubProto;
+		if(option_override>0x0F)
+			Serial_write(nbr | (multi_protocols[multi_protocols_index].optionType<<4));	// number of sub protocols && option type
+		else
+			Serial_write(nbr | (option_override<<4));									// number of sub protocols && option_override type
+		uint8_t j=0;
+		if(nbr && (sub_protocol&0x07)<nbr)
+		{
+			uint8_t len=multi_protocols[multi_protocols_index].SubProtoString[0];
+			uint8_t offset=len*(sub_protocol&0x07)+1;
+			for(;j<len;j++)
+				Serial_write(multi_protocols[multi_protocols_index].SubProtoString[j+offset]);	// current sub protocol name
+		}
+		for(;j<8;j++)
+			Serial_write(0x00);
+	}
 }
+
+#ifdef MULTI_CONFIG_INO
+	void CONFIG_frame()
+	{
+		multi_send_header(MULTI_TELEMETRY_CONFIG, 21);
+		for (uint8_t i = 0; i < 21; i++)		// Config data
+			Serial_write(packet_in[i]);
+	}
+#endif
+
+#ifdef MLINK_FW_TELEMETRY
+	void MLINK_frame()
+	{
+		multi_send_header(MULTI_TELEMETRY_MLINK, 10);
+		Serial_write(TX_RSSI);					// RSSI
+		Serial_write(TX_LQI);					// LQI
+		for (uint8_t i = 0; i < 8; i++)			// followed by 8 bytes of telemetry data
+			Serial_write(packet_in[i]);
+	}
 #endif
 
 #ifdef DSM_TELEMETRY
-	#ifdef MULTI_TELEMETRY
-		void DSM_frame()
+	void DSM_frame()
+	{
+		if (packet_in[0] == 0x80)
 		{
-			if (packet_in[0] == 0x80)
-			{
-				multi_send_header(MULTI_TELEMETRY_DSMBIND, 10);
-				for (uint8_t i = 1; i < 11; i++) 	// 10 bytes of DSM bind response
-					Serial_write(packet_in[i]);
+			multi_send_header(MULTI_TELEMETRY_DSMBIND, 10);
+			for (uint8_t i = 1; i < 11; i++) 	// 10 bytes of DSM bind response
+				Serial_write(packet_in[i]);
 
-			}
-			else
-			{
-				multi_send_header(MULTI_TELEMETRY_DSM, 17);
-				for (uint8_t i = 0; i < 17; i++)	// RSSI value followed by 16 bytes of telemetry data
-					Serial_write(packet_in[i]);
-			}
 		}
-	#else
-		void DSM_frame()
+		else
 		{
-			Serial_write(0xAA);						// Telemetry packet
-			for (uint8_t i = 0; i < 17; i++)		// RSSI value followed by 16 bytes of telemetry data
+			multi_send_header(MULTI_TELEMETRY_DSM, 17);
+			for (uint8_t i = 0; i < 17; i++)	// RSSI value followed by 16 bytes of telemetry data
 				Serial_write(packet_in[i]);
 		}
-	#endif
+	}
 #endif
 
 #ifdef SCANNER_TELEMETRY
 	void spectrum_scanner_frame()
 	{
-		#if defined MULTI_TELEMETRY
-			multi_send_header(MULTI_TELEMETRY_SCANNER, SCAN_CHANS_PER_PACKET + 1);
-		#else
-			Serial_write(0xAA);						// Telemetry packet
-		#endif
+		multi_send_header(MULTI_TELEMETRY_SCANNER, SCAN_CHANS_PER_PACKET + 1);
 		Serial_write(packet_in[0]);					// start channel
 		for(uint8_t ch = 0; ch < SCAN_CHANS_PER_PACKET; ch++)
 			Serial_write(packet_in[ch+1]);			// RSSI power levels
@@ -274,11 +295,7 @@ static void multi_send_status()
 			len = 4 + (len / 8);
 		else
 			len = 5 + (len / 8);
-		#if defined MULTI_TELEMETRY
-				multi_send_header(MULTI_TELEMETRY_RX_CHANNELS, len);
-		#else
-				Serial_write(0xAA);					// Telemetry packet
-		#endif
+		multi_send_header(MULTI_TELEMETRY_RX_CHANNELS, len);
 		for (uint8_t i = 0; i < len; i++)
 			Serial_write(packet_in[i]);				// pps, rssi, ch start, ch count, 16x ch data
 	}
@@ -287,11 +304,7 @@ static void multi_send_status()
 #ifdef AFHDS2A_FW_TELEMETRY
 	void AFHDSA_short_frame()
 	{
-		#if defined MULTI_TELEMETRY
-			multi_send_header(packet_in[29]==0xAA?MULTI_TELEMETRY_AFHDS2A:MULTI_TELEMETRY_AFHDS2A_AC, 29);
-		#else
-			Serial_write(packet_in[29]);			// Telemetry packet 0xAA or 0xAC
-		#endif
+		multi_send_header(packet_in[29]==0xAA?MULTI_TELEMETRY_AFHDS2A:MULTI_TELEMETRY_AFHDS2A_AC, 29);
 		for (uint8_t i = 0; i < 29; i++)			// RSSI value followed by 4*7 bytes of telemetry data
 			Serial_write(packet_in[i]);
 	}
@@ -300,11 +313,7 @@ static void multi_send_status()
 #ifdef HITEC_FW_TELEMETRY
 	void HITEC_short_frame()
 	{
-		#if defined MULTI_TELEMETRY
-			multi_send_header(MULTI_TELEMETRY_HITEC, 8);
-		#else
-			Serial_write(0xAA);						// Telemetry packet
-		#endif
+		multi_send_header(MULTI_TELEMETRY_HITEC, 8);
 		for (uint8_t i = 0; i < 8; i++)				// TX RSSI and TX LQI values followed by frame number and 5 bytes of telemetry data
 			Serial_write(packet_in[i]);
 	}
@@ -313,24 +322,20 @@ static void multi_send_status()
 #ifdef HOTT_FW_TELEMETRY
 	void HOTT_short_frame()
 	{
-		#if defined MULTI_TELEMETRY
-			multi_send_header(MULTI_TELEMETRY_HOTT, 14);
-		#else
-			Serial_write(0xAA);						// Telemetry packet
-		#endif
+		multi_send_header(MULTI_TELEMETRY_HOTT, 14);
 		for (uint8_t i = 0; i < 14; i++)			// TX RSSI and TX LQI values followed by frame number and telemetry data
 			Serial_write(packet_in[i]);
 	}
 #endif
 
-#ifdef MULTI_TELEMETRY
 static void multi_send_frskyhub()
 {
 	multi_send_header(MULTI_TELEMETRY_HUB, 9);
 	for (uint8_t i = 0; i < 9; i++)
 		Serial_write(frame[i]);
 }
-#endif
+
+#endif //MULTI_TELEMETRY
 
 void frskySendStuffed()
 {
@@ -517,6 +522,9 @@ void init_frskyd_link_telemetry()
 	TX_RSSI=0;
 	RX_LQI=0;
 	TX_LQI=0;
+	#if defined HUB_TELEMETRY
+		FrSkyD_User_Frame_Start=FrSkyD_User_Frame_End=0;
+	#endif
 }
 
 void frsky_link_frame()
@@ -531,11 +539,11 @@ void frsky_link_frame()
 		telemetry_link |= 2 ;		// Send hub if available
 	}
 	else
-	{//PROTO_HUBSAN, PROTO_AFHDS2A, PROTO_BAYANG, PROTO_NCC1701, PROTO_CABELL, PROTO_HITEC, PROTO_BUGS, PROTO_BUGSMINI, PROTO_FRSKYX, PROTO_FRSKYX2, PROTO_PROPEL, PROTO_DEVO, PROTO_RLINK, PROTO_OMP, PROTO_WFLY2, PROTO_LOLI
+	{//PROTO_HUBSAN, PROTO_AFHDS2A, PROTO_BAYANG, PROTO_NCC1701, PROTO_CABELL, PROTO_HITEC, PROTO_BUGS, PROTO_BUGSMINI, PROTO_FRSKYX, PROTO_FRSKYX2, PROTO_PROPEL, PROTO_DEVO, PROTO_RLINK, PROTO_OMP, PROTO_WFLY2, PROTO_LOLI, PROTO_MLINK
 		frame[1] = v_lipo1;
 		frame[2] = v_lipo2;
 		frame[3] = RX_RSSI;
-		telemetry_link=0;
+		telemetry_link &= ~1 ;		// Sent
 	}
 	frame[4] = TX_RSSI;
 	frame[5] = RX_LQI;
@@ -563,7 +571,7 @@ void frsky_user_frame()
 		else
 		{
 			frame[1]=telemetry_in_buffer[6];			// packet size
-			telemetry_link=0;			// only 1 packet or processing second packet
+			telemetry_link &= ~2;			// only 1 packet or processing second packet
 		}
 		frame[2] = telemetry_in_buffer[7];
 		for(uint8_t i=0;i<USER_MAX_BYTES;i++)
@@ -578,7 +586,7 @@ void frsky_user_frame()
 		#endif
 	}
 	else
-		telemetry_link=0;
+		telemetry_link &= ~2;
 }
 /*
 HuB RX packets.
@@ -594,6 +602,54 @@ packet_in[6]|(counter++)|00 01 02 03 04 05 06 07 08 09
 0A     0F          5E 3A 06 00 5E 5E 3B 09 00 5E
 05     10          5E 06 16 72 5E 5E 3A 06 00 5E
 */
+static void __attribute__((unused)) frsky_write_user_frame(uint8_t ID, uint8_t low, uint8_t high)
+{
+	telemetry_in_buffer[6]  = 0x04;		// number of bytes in the payload
+	telemetry_in_buffer[7]  = 0x00;		// unknown?
+	telemetry_in_buffer[8]  = 0x5E;		// start of payload
+	telemetry_in_buffer[9]  = ID;		// ID must be less than 0x40
+	uint8_t pos=10;
+	uint8_t value = low;
+	for(uint8_t i=0;i<2;i++)
+	{// Byte stuffing
+		if(value == 0x5D || value == 0x5E)
+		{// Byte stuffing
+			telemetry_in_buffer[pos+1] = value ^ 0x60;
+			telemetry_in_buffer[pos] = 0x5D;
+			telemetry_in_buffer[6]++;	// 1 more byte in the payload
+			pos += 2;
+		}
+		else
+			telemetry_in_buffer[pos++] = value;
+		value = high;
+	}
+	telemetry_link |= 2;				// request to send frame
+}
+
+static void __attribute__((unused)) frsky_send_user_frame(uint8_t ID, uint8_t low, uint8_t high)
+{
+	if(telemetry_link&2)
+	{ // add to buffer
+		uint8_t test = (FrSkyD_User_Frame_End + 1) & 0x07;
+		if(test == FrSkyD_User_Frame_Start)
+			return;	// buffer full...
+		FrSkyD_User_Frame_End = test;
+		FrSkyD_User_Frame[FrSkyD_User_Frame_End].ID   = ID;
+		FrSkyD_User_Frame[FrSkyD_User_Frame_End].low  = low;
+		FrSkyD_User_Frame[FrSkyD_User_Frame_End].high = high;
+	}
+	else // send to TX direct
+		frsky_write_user_frame(ID, low, high);
+}
+
+static void __attribute__((unused)) frsky_check_user_frame()
+{
+	if((telemetry_link&2) || FrSkyD_User_Frame_Start == FrSkyD_User_Frame_End)
+		return;		// need to wait that the last frame is sent or buffer is empty
+	frsky_write_user_frame(FrSkyD_User_Frame[FrSkyD_User_Frame_Start].ID, FrSkyD_User_Frame[FrSkyD_User_Frame_Start].low, FrSkyD_User_Frame[FrSkyD_User_Frame_Start].high);
+	FrSkyD_User_Frame_Start++;
+	FrSkyD_User_Frame_Start &= 0x07;
+}
 #endif
 
 
@@ -854,7 +910,7 @@ void TelemetryUpdate()
 				debugln("TEL_BUF %d",t);
 */
 	#endif
-	#if defined(MULTI_TELEMETRY) || defined(MULTI_STATUS)
+	#ifdef MULTI_TELEMETRY
 		uint32_t now = millis();
 		if ((IS_SEND_MULTI_STATUS_on || ((now - lastMulti) > MULTI_TIME))&& protocol != PROTO_SCANNER)
 		{
@@ -900,67 +956,84 @@ void TelemetryUpdate()
 		}
 	#endif // SPORT_TELEMETRY
 
-	#if defined DSM_TELEMETRY
-		if(telemetry_link && protocol == PROTO_DSM)
-		{	// DSM
-			DSM_frame();
-			telemetry_link=0;
-			return;
-		}
-	#endif
-	#if defined AFHDS2A_FW_TELEMETRY
-		if(telemetry_link == 2 && protocol == PROTO_AFHDS2A)
-		{
-			AFHDSA_short_frame();
-			telemetry_link=0;
-			return;
-		}
-	#endif
-	#if defined HITEC_FW_TELEMETRY
-		if(telemetry_link == 2 && protocol == PROTO_HITEC)
-		{
-			HITEC_short_frame();
-			telemetry_link=0;
-			return;
-		}
-	#endif
-	#if defined HOTT_FW_TELEMETRY
-		if(telemetry_link == 2 && protocol == PROTO_HOTT)
-		{
-			HOTT_short_frame();
-			telemetry_link=0;
-			return;
-		}
-	#endif
-
-	#if defined SCANNER_TELEMETRY
-		if (telemetry_link && protocol == PROTO_SCANNER)
-		{
-			spectrum_scanner_frame();
-			telemetry_link = 0;
-			return;
-		}
-	#endif
-
-	#if defined (FRSKY_RX_TELEMETRY) || defined(AFHDS2A_RX_TELEMETRY) || defined (BAYANG_RX_TELEMETRY) || defined (DSM_RX_CYRF6936_INO)
-		if ((telemetry_link & 1) && (protocol == PROTO_FRSKY_RX || protocol == PROTO_AFHDS2A_RX || protocol == PROTO_BAYANG_RX || protocol == PROTO_DSM_RX) )
-		{
-			receiver_channels_frame();
-			telemetry_link &= ~1;
-			return;
-		}
-	#endif
-
-		if( telemetry_link & 1 )
-		{	// FrSkyD + Hubsan + AFHDS2A + Bayang + Cabell + Hitec + Bugs + BugsMini + NCC1701 + PROPEL + RLINK + OMP
-			// FrSkyX telemetry if in PPM
-			frsky_link_frame();
-			return;
-		}
+	#ifdef MULTI_TELEMETRY
+		#if defined MULTI_CONFIG_INO
+			if(telemetry_link && protocol == PROTO_CONFIG)
+			{
+				CONFIG_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined MLINK_FW_TELEMETRY
+			if(telemetry_link && protocol == PROTO_MLINK)
+			{
+				MLINK_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined DSM_TELEMETRY
+			if(telemetry_link && protocol == PROTO_DSM)
+			{	// DSM
+				DSM_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined AFHDS2A_FW_TELEMETRY
+			if(telemetry_link == 2 && protocol == PROTO_AFHDS2A)
+			{
+				AFHDSA_short_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined HITEC_FW_TELEMETRY
+			if(telemetry_link == 2 && protocol == PROTO_HITEC)
+			{
+				HITEC_short_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined HOTT_FW_TELEMETRY
+			if(telemetry_link == 2 && protocol == PROTO_HOTT)
+			{
+				HOTT_short_frame();
+				telemetry_link=0;
+				return;
+			}
+		#endif
+		#if defined SCANNER_TELEMETRY
+			if (telemetry_link && protocol == PROTO_SCANNER)
+			{
+				spectrum_scanner_frame();
+				telemetry_link = 0;
+				return;
+			}
+		#endif
+		#if defined (FRSKY_RX_TELEMETRY) || defined(AFHDS2A_RX_TELEMETRY) || defined (BAYANG_RX_TELEMETRY) || defined (DSM_RX_CYRF6936_INO)
+			if ((telemetry_link & 1) && (protocol == PROTO_FRSKY_RX || protocol == PROTO_AFHDS2A_RX || protocol == PROTO_BAYANG_RX || protocol == PROTO_DSM_RX) )
+			{
+				receiver_channels_frame();
+				telemetry_link &= ~1;
+				return;
+			}
+		#endif
+	#endif //MULTI_TELEMETRY
+	
+	if( telemetry_link & 1 )
+	{	// FrSkyD + Hubsan + AFHDS2A + Bayang + Cabell + Hitec + Bugs + BugsMini + NCC1701 + PROPEL + RLINK + OMP + MLINK + DEVO
+		// FrSkyX telemetry if in PPM
+		frsky_link_frame();
+		return;
+	}
 	#if defined HUB_TELEMETRY
-		if((telemetry_link & 2) && protocol == PROTO_FRSKYD)
-		{	// FrSkyD
+		if((telemetry_link & 2) && ( protocol == PROTO_FRSKYD || protocol == PROTO_BAYANG || protocol == PROTO_MLINK  || protocol == PROTO_DEVO ) )
+		{	// FrSkyD + Bayang + MLINK + DEVO
 			frsky_user_frame();
+			frsky_check_user_frame();
 			return;
 		}
 	#endif
@@ -1000,7 +1073,6 @@ void TelemetryUpdate()
 				#else
 					#ifdef STM32_BOARD
 						usart3_begin(9600,SERIAL_8N1);		//USART3 
-						USART3_BASE->CR1 &= ~ USART_CR1_RE;	//disable RX leave TX enabled
 					#else
 						UBRR0H = 0x00;
 						UBRR0L = 0x67;
@@ -1021,7 +1093,6 @@ void TelemetryUpdate()
 				#else
 					#ifdef STM32_BOARD
 						usart3_begin(57600,SERIAL_8N1);		//USART3 
-						USART3_BASE->CR1 &= ~ USART_CR1_RE;	//disable RX leave TX enabled
 					#else
 						UBRR0H = 0x00;
 						UBRR0L = 0x22;
@@ -1042,7 +1113,6 @@ void TelemetryUpdate()
 				#else
 					#ifdef STM32_BOARD
 						usart3_begin(125000,SERIAL_8N1);	//USART3 
-						USART3_BASE->CR1 &= ~ USART_CR1_RE;	//disable RX leave TX enabled
 					#else
 						UBRR0H = 0x00;
 						UBRR0L = 0x07;

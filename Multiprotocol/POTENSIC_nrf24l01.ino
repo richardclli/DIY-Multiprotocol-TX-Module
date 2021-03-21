@@ -13,7 +13,7 @@ Multiprotocol is distributed in the hope that it will be useful,
 
 #if defined(POTENSIC_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 //#define FORCE_POTENSIC_ORIGINAL_ID
 
@@ -61,36 +61,25 @@ static void __attribute__((unused)) POTENSIC_send_packet()
 	}
 	POTENSIC_set_checksum();
 	packet[9] = hopping_frequency_no;
-	NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[hopping_frequency_no&0x03]);
+	
+	//RF channel
+	XN297_Hopping(hopping_frequency_no&0x03);
 	hopping_frequency_no++;
-	// Power on, TX mode, 2byte CRC
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, POTENSIC_PACKET_SIZE);
-	NRF24L01_SetPower();
 }
 
-static void __attribute__((unused)) POTENSIC_init()
+static void __attribute__((unused)) POTENSIC_RF_init()
 {
-	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
+
 	if(IS_BIND_IN_PROGRESS)
 		XN297_SetTXAddr((uint8_t*)"\x01\x01\x01\x01\x06", 5);	// Bind address
 	else
 		XN297_SetTXAddr(rx_tx_addr,5);							// Normal address
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);			// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);		// Enable data pipe 0 only
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);		// set address length (5 bytes)
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00);	// no retransmits
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);				// 1Mbps
-	NRF24L01_SetPower();
-	NRF24L01_Activate(0x73);							// Activate feature register
-	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);			// Disable dynamic payload length on all pipes
-	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x01);
-	NRF24L01_Activate(0x73);
 }
 
 static void __attribute__((unused)) POTENSIC_initialize_txid()
@@ -103,26 +92,25 @@ static void __attribute__((unused)) POTENSIC_initialize_txid()
 
 uint16_t POTENSIC_callback()
 {
-	if(IS_BIND_IN_PROGRESS)
+	#ifdef MULTI_SYNC
+		telemetry_set_input_sync(POTENSIC_PACKET_PERIOD);
+	#endif
+	if(bind_counter)
 		if(--bind_counter==0)
 		{
 			BIND_DONE;
 			XN297_SetTXAddr(rx_tx_addr,5);
 		}
-	#ifdef MULTI_SYNC
-		telemetry_set_input_sync(POTENSIC_PACKET_PERIOD);
-	#endif
 	POTENSIC_send_packet();
 	return POTENSIC_PACKET_PERIOD;
 }
 
-uint16_t initPOTENSIC(void)
+void POTENSIC_init(void)
 {
 	bind_counter = POTENSIC_BIND_COUNT;
 	POTENSIC_initialize_txid();
-	POTENSIC_init();
+	POTENSIC_RF_init();
 	hopping_frequency_no = 0;
-	return	POTENSIC_INITIAL_WAIT;
 }
 
 #endif

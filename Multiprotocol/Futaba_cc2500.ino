@@ -18,6 +18,8 @@
 
 #include "iface_cc2500.h"
 
+//#define SFHSS_DEBUG_TIMING
+
 #define SFHSS_COARSE	0
 
 #define SFHSS_PACKET_LEN 13
@@ -124,7 +126,7 @@ static void __attribute__((unused)) SFHSS_calc_next_chan()
 // Channel values are 12-bit values between 1020 and 2020, 1520 is the middle.
 // Futaba @140% is 2070...1520...970
 // Values grow down and to the right.
-static void __attribute__((unused)) SFHSS_build_data_packet()
+static void __attribute__((unused)) SFHSS_send_packet()
 {
 	uint16_t ch[4];
 	// command.bit0 is the packet number indicator: =0 -> SFHSS_DATA1, =1 -> SFHSS_DATA2
@@ -164,16 +166,14 @@ static void __attribute__((unused)) SFHSS_build_data_packet()
 			//    3584-4095 -> looks to be used for the throttle channel with values ranging from 880µs to 1520µs
 			for(uint8_t i=0;i<4;i++)
 			{
-				ch[i]=Failsafe_data[CH_AETR[ch_offset+i]];
-				if(ch[i]==FAILSAFE_CHANNEL_HOLD)
+				uint16_t val=Failsafe_data[CH_AETR[ch_offset+i]];
+				if(val==FAILSAFE_CHANNEL_HOLD)
 					ch[i]=1024;
-				else if(ch[i]==FAILSAFE_CHANNEL_NOPULSES)
+				else if(val==FAILSAFE_CHANNEL_NOPULSES)
 					ch[i]=0;
 				else
 				{ //Use channel value
-					ch[i]=(ch[i]>>1)+2560;
-					//if(IS_DISABLE_CH_MAP_off && ch_offset+i==CH3 && ch[i]<3072)		// Throttle
-					//	ch[i]+=1024;
+					ch[i] = convert_channel_16b_nolimit(CH_AETR[ch_offset+i],3571,2571,true); //3472,2672: not enough throw
 				}
 			}
 		}
@@ -202,15 +202,17 @@ static void __attribute__((unused)) SFHSS_build_data_packet()
 	packet[10] = (ch[2] << 7) | ((ch[3] >> 5) & 0x7F );
 	packet[11] = (ch[3] << 3) | ((fhss_code >> 2) & 0x07 );
 	packet[12] = (fhss_code << 6) | command;
-}
 
-static void __attribute__((unused)) SFHSS_send_packet()
-{
     CC2500_WriteData(packet, SFHSS_PACKET_LEN);
 }
 
-uint16_t ReadSFHSS()
+uint16_t SFHSS_callback()
 {
+#ifdef SFHSS_DEBUG_TIMING
+	static uint16_t prev_adjust_timing=1024;
+	uint16_t adjust_timing = (Channel_data[CH15]>>3) - (1024>>3);	// +-102 @ 100%
+#endif
+
 	switch(phase)
 	{
 		case SFHSS_START:
@@ -237,16 +239,27 @@ uint16_t ReadSFHSS()
 			#ifdef MULTI_SYNC
 				telemetry_set_input_sync(6800);
 			#endif
-			SFHSS_build_data_packet();
 			SFHSS_send_packet();
 			phase = SFHSS_DATA2;
+#ifdef SFHSS_DEBUG_TIMING
+			return SFHSS_DATA2_TIMING - adjust_timing;
+#else
 			return SFHSS_DATA2_TIMING;								// original 1650
+#endif
 		case SFHSS_DATA2:
-			SFHSS_build_data_packet();
 			SFHSS_send_packet();
 			SFHSS_calc_next_chan();
 			phase = SFHSS_TUNE;
-			return (SFHSS_PACKET_PERIOD -2000 -SFHSS_DATA2_TIMING);	// original 2000
+#ifdef SFHSS_DEBUG_TIMING
+			if(prev_adjust_timing != adjust_timing)
+			{
+				debugln("A:%d",(uint16_t)(SFHSS_DATA2_TIMING - adjust_timing));
+				prev_adjust_timing = adjust_timing;
+			}
+			return SFHSS_PACKET_PERIOD -2000 -(SFHSS_DATA2_TIMING - adjust_timing);
+#else
+			return SFHSS_PACKET_PERIOD -2000 -SFHSS_DATA2_TIMING;	// original 2000
+#endif
 		case SFHSS_TUNE:
 			phase = SFHSS_DATA1;
 			SFHSS_tune_freq();
@@ -287,7 +300,7 @@ static void __attribute__((unused)) SFHSS_get_tx_id()
 	rx_tx_addr[1] = fixed_id >> 0;
 }
 
-uint16_t initSFHSS()
+void SFHSS_init()
 {
 	BIND_DONE;	// Not a TX bind protocol
 	SFHSS_get_tx_id();
@@ -296,7 +309,6 @@ uint16_t initSFHSS()
 
 	SFHSS_rf_init();
 	phase = SFHSS_START;
-	return 10000;
 }
 
 #endif

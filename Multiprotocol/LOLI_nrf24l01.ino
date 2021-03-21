@@ -21,23 +21,14 @@ Multiprotocol is distributed in the hope that it will be useful,
 #define LOLI_PACKET_SIZE	11
 #define LOLI_NUM_CHANNELS	5
 
-static void __attribute__((unused)) LOLI_init()
+static void __attribute__((unused)) LOLI_RF_init()
 {
 	NRF24L01_Initialize();
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      	// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);  	// Enable data pipe 0 only
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);		// 5-bytes RX/TX address
+
 	NRF24L01_WriteRegisterMulti(NRF24L01_0A_RX_ADDR_P0, (uint8_t*)"LOVE!", 5);
 	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, (uint8_t*)"LOVE!", 5);
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00);	// No retransmits
 	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, LOLI_PACKET_SIZE);	// RX FIFO size
 	NRF24L01_SetBitrate(NRF24L01_BR_250K);             	// 250Kbps
-
-	NRF24L01_SetPower();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);     	// Clear data ready, data sent, and retransmit
-	NRF24L01_SetTxRxMode(TX_EN);
 }
 
 // flags going to packet[1] for packet type 0xa2 (Rx config)
@@ -175,14 +166,11 @@ uint16_t LOLI_callback()
 	{
 		case LOLI_BIND1:
 			if(bind_counter)
-			{
-				bind_counter--;
-				if(bind_counter==0)
+				if(--bind_counter==0)
 				{
 					phase=LOLI_PREP_DATA;
 					break;
 				}
-			}
 			// send bind packet
 			NRF24L01_SetTxRxMode(TXRX_OFF);
 			NRF24L01_SetTxRxMode(TX_EN);
@@ -290,7 +278,7 @@ uint16_t LOLI_callback()
 	return 20000;
 }
 
-uint16_t initLOLI()
+void LOLI_init()
 {
 	rx_tx_addr[1] %= 0x30;
 	calc_fh_channels(LOLI_NUM_CHANNELS);
@@ -306,9 +294,7 @@ uint16_t initLOLI()
 	else
 		phase = LOLI_PREP_DATA;
 
-	LOLI_init();
-
-	return 500;
+	LOLI_RF_init();
 }
 
 #endif

@@ -12,7 +12,7 @@
  You should have received a copy of the GNU General Public License
  along with Multiprotocol.  If not, see <http://www.gnu.org/licenses/>.
  */
-// Last sync with hexfet new_protocols/yd717_nrf24l01.c dated 2015-09-28
+// Last sync with hexfet new_protocols/YD717_nrf24l01.c dated 2015-09-28
 
 #if defined(YD717_NRF24L01_INO)
 
@@ -33,10 +33,10 @@
 
 #define YD717_PAYLOADSIZE 8				// receive data pipes set to this size, but unused
 
-static void __attribute__((unused)) yd717_send_packet(uint8_t bind)
+static void __attribute__((unused)) YD717_send_packet()
 {
 	uint8_t rudder_trim, elevator_trim, aileron_trim;
-	if (bind)
+	if (IS_BIND_IN_PROGRESS)
 	{
 		packet[0]= rx_tx_addr[0]; // send data phase address in first 4 bytes
 		packet[1]= rx_tx_addr[1];
@@ -117,26 +117,18 @@ static void __attribute__((unused)) yd717_send_packet(uint8_t bind)
 	NRF24L01_SetPower();	// Set tx_power
 }
 
-static void __attribute__((unused)) yd717_init()
+static void __attribute__((unused)) YD717_RF_init()
 {
 	NRF24L01_Initialize();
 
 	// CRC, radio on
-	NRF24L01_SetTxRxMode(TX_EN);
-	NRF24L01_WriteReg(NRF24L01_00_CONFIG, _BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_PWR_UP)); 
 	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x3F);				// Enable Acknowledgement on all data pipes
 	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x3F);			// Enable all data pipes
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);			// 5-byte RX/TX address
 	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x1A);		// 500uS retransmit t/o, 10 tries
 	NRF24L01_WriteReg(NRF24L01_05_RF_CH, YD717_RF_CHANNEL);	// Channel 3C
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);					// 1Mbps
-	NRF24L01_SetPower();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);			// Clear data ready, data sent and retransmit
 
-	NRF24L01_Activate(0x73);								// Activate feature register
 	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x3F);				// Enable dynamic payload length on all pipes
 	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x07);			// Set feature bits on
-	NRF24L01_Activate(0x73);
 
 	// for bind packets set address to prearranged value known to receiver
 	uint8_t bind_rx_tx_addr[5];
@@ -150,44 +142,32 @@ static void __attribute__((unused)) yd717_init()
 		bind_rx_tx_addr[i]  = 0x60 + offset;
     NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, bind_rx_tx_addr, 5);
     NRF24L01_WriteRegisterMulti(NRF24L01_0A_RX_ADDR_P0, bind_rx_tx_addr, 5);
+
+	NRF24L01_WriteReg(NRF24L01_00_CONFIG, _BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_PWR_UP));
 }
 
-uint16_t yd717_callback()
+uint16_t YD717_callback()
 {
-	if(IS_BIND_DONE)
-	{
-		#ifdef MULTI_SYNC
-			telemetry_set_input_sync(YD717_PACKET_PERIOD);
-		#endif
-		yd717_send_packet(0);
-	}
-	else
-	{
-		if (bind_counter == 0)
+	#ifdef MULTI_SYNC
+		telemetry_set_input_sync(YD717_PACKET_PERIOD);
+	#endif
+	if (bind_counter)
+		if(--bind_counter==0)
 		{
 			NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, rx_tx_addr, 5);	// set address
 			NRF24L01_WriteRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rx_tx_addr, 5);
-			yd717_send_packet(0);
 			BIND_DONE;							// bind complete
 		}
-		else
-		{
-			yd717_send_packet(1);
-			bind_counter--;
-		}
-	}
-	return YD717_PACKET_PERIOD;						// Packet every 8ms
+	YD717_send_packet();
+	return YD717_PACKET_PERIOD;					// Packet every 8ms
 }
 
-uint16_t initYD717()
+void YD717_init()
 {
 	BIND_IN_PROGRESS;			// autobind protocol
 	rx_tx_addr[4] = 0xC1;		// always uses first data port
-	yd717_init();
+	YD717_RF_init();
 	bind_counter = YD717_BIND_COUNT;
-
-	// Call callback in 50ms
-	return YD717_INITIAL_WAIT;
 }
 
 #endif

@@ -14,9 +14,9 @@
  */
 // compatible with V911S
 
-#if defined(V911S_NRF24L01_INO)
+#if defined(V911S_CCNRF_INO)
 
-#include "iface_nrf250k.h"
+#include "iface_xn297.h"
 
 //#define V911S_ORIGINAL_ID
 
@@ -35,9 +35,9 @@
 // flags going to packet[2]
 #define	V911S_FLAG_CALIB	0x01
 
-static void __attribute__((unused)) V911S_send_packet(uint8_t bind)
+static void __attribute__((unused)) V911S_send_packet()
 {
-	if(bind)
+	if(IS_BIND_IN_PROGRESS)
 	{
 		packet[0] = 0x42;
 		packet[1] = 0x4E;
@@ -58,7 +58,7 @@ static void __attribute__((unused)) V911S_send_packet(uint8_t bind)
 		}
 		if(rf_ch_num&2)
 			channel=7-channel;
-		XN297L_Hopping(channel);
+		XN297_Hopping(channel);
 		hopping_frequency_no++;
 		hopping_frequency_no&=7;							// 8 RF channels
 
@@ -102,23 +102,23 @@ static void __attribute__((unused)) V911S_send_packet(uint8_t bind)
 	}
 	
 	if(sub_protocol==V911S_STD)
-		XN297L_WritePayload(packet, V911S_PACKET_SIZE);
+		XN297_WritePayload(packet, V911S_PACKET_SIZE);
 	else
-		XN297L_WriteEnhancedPayload(packet, V911S_PACKET_SIZE, bind?0:1);
+		XN297_WriteEnhancedPayload(packet, V911S_PACKET_SIZE, IS_BIND_IN_PROGRESS?0:1);
 	
-	XN297L_SetPower();				// Set tx_power
-	XN297L_SetFreqOffset();			// Set frequency offset
+	XN297_SetPower();				// Set tx_power
+	XN297_SetFreqOffset();			// Set frequency offset
 }
 
-static void __attribute__((unused)) V911S_init()
+static void __attribute__((unused)) V911S_RF_init()
 {
-	XN297L_Init();
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_250K);
 	if(sub_protocol==V911S_STD)
-		XN297L_SetTXAddr((uint8_t *)"KNBND",5);		// V911S Bind address
+		XN297_SetTXAddr((uint8_t *)"KNBND",5);		// V911S Bind address
 	else
-		XN297L_SetTXAddr((uint8_t *)"XPBND",5);		// E119 Bind address
-	XN297L_HoppingCalib(V911S_NUM_RF_CHANNELS);		// Calibrate all channels
-	XN297L_RFChannel(V911S_RF_BIND_CHANNEL);		// Set bind channel
+		XN297_SetTXAddr((uint8_t *)"XPBND",5);		// E119 Bind address
+	XN297_HoppingCalib(V911S_NUM_RF_CHANNELS);		// Calibrate all channels
+	XN297_RFChannel(V911S_RF_BIND_CHANNEL);		// Set bind channel
 }
 
 static void __attribute__((unused)) V911S_initialize_txid()
@@ -135,33 +135,26 @@ static void __attribute__((unused)) V911S_initialize_txid()
 
 uint16_t V911S_callback()
 {
-	if(IS_BIND_DONE)
+	#ifdef MULTI_SYNC
+		telemetry_set_input_sync(V911S_PACKET_PERIOD);
+	#endif
+	if(bind_counter)
 	{
-		#ifdef MULTI_SYNC
-			telemetry_set_input_sync(V911S_PACKET_PERIOD);
-		#endif
-		V911S_send_packet(0);
-	}
-	else
-	{
+		bind_counter--;
 		if (bind_counter == 0)
 		{
 			BIND_DONE;
 			XN297_SetTXAddr(rx_tx_addr, 5);
 			packet_period=V911S_PACKET_PERIOD;
 		}
-		else
-		{
-			V911S_send_packet(1);
-			bind_counter--;
-			if(bind_counter==100)		// same as original TX...
-				packet_period=V911S_BIND_PACKET_PERIOD*3;
-		}
+		else if(bind_counter==100)		// same as original TX...
+			packet_period=V911S_BIND_PACKET_PERIOD*3;
 	}
+	V911S_send_packet();
 	return	packet_period;
 }
 
-uint16_t initV911S(void)
+void V911S_init(void)
 {
 	V911S_initialize_txid();
 	#ifdef V911S_ORIGINAL_ID
@@ -191,7 +184,7 @@ uint16_t initV911S(void)
 		}
 	#endif
 
-	V911S_init();
+	V911S_RF_init();
 
 	if(IS_BIND_IN_PROGRESS)
 	{
@@ -204,7 +197,6 @@ uint16_t initV911S(void)
 		packet_period= V911S_PACKET_PERIOD;
 	}
 	hopping_frequency_no=0;
-	return	V911S_INITIAL_WAIT;
 }
 
 #endif

@@ -23,7 +23,7 @@
 #define ESKY150_BINDING_PACKET_PERIOD	2000
 #define ESKY150_SENDING_PACKET_PERIOD	4800
 
-static void __attribute__((unused)) ESKY150_init()
+static void __attribute__((unused)) ESKY150_RF_init()
 {
 	//Original TX always sets for channelx 0x22 and 0x4a
 	// Use channels 2..79
@@ -31,25 +31,16 @@ static void __attribute__((unused)) ESKY150_init()
 	hopping_frequency[1] = hopping_frequency[0] + 40;
 
 	NRF24L01_Initialize();
-	NRF24L01_WriteReg(NRF24L01_00_CONFIG, (_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO))); 
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      // No Auto Acknoledgement
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);  // Enable data pipe 0
 	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x02);   // 4-byte RX/TX address
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0);    // Disable retransmit
-	NRF24L01_SetPower();
 	NRF24L01_SetBitrate(NRF24L01_BR_2M);
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);     // Clear data ready, data sent, and retransmit
 	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, ESKY150_PAYLOADSIZE);   // bytes of data payload for pipe 0
 	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR, rx_tx_addr, ESKY150_TX_ADDRESS_SIZE);
 
-	NRF24L01_Activate(0x73);
 	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 1); // Dynamic payload for data pipe 0
 	// Enable: Dynamic Payload Length, Payload with ACK , W_TX_PAYLOAD_NOACK
 	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, _BV(NRF2401_1D_EN_DPL) | _BV(NRF2401_1D_EN_ACK_PAY) | _BV(NRF2401_1D_EN_DYN_ACK));
-	NRF24L01_Activate(0x73);
-	NRF24L01_FlushTx();
-	// Turn radio power on
-	NRF24L01_SetTxRxMode(TX_EN);
+
+	NRF24L01_SetTxRxMode(TX_EN);						// Clear data ready, data sent, retransmit and enable CRC 16bits, ready for TX
 }
 
 static void __attribute__((unused)) ESKY150_bind_init()
@@ -171,16 +162,15 @@ uint16_t ESKY150_callback()
 	return ESKY150_SENDING_PACKET_PERIOD;
 }
 
-uint16_t initESKY150(void)
+void ESKY150_init(void)
 {
-	ESKY150_init();
+	ESKY150_RF_init();
 	if(IS_BIND_IN_PROGRESS)
 	{
 		bind_counter=3000;
 		ESKY150_bind_init();
 	}
 	hopping_frequency_no=0;
-	return 10000;
 }
 
 #endif

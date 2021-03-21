@@ -16,7 +16,7 @@ Multiprotocol is distributed in the hope that it will be useful,
 
 #if defined(TIGER_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 #define TIGER_FORCE_ID
 
@@ -66,7 +66,7 @@ static void __attribute__((unused)) TIGER_send_packet()
 	packet[TIGER_PAYLOAD_SIZE-1]=crc8;
 
 	//Hopping frequency
-	NRF24L01_WriteReg(NRF24L01_05_RF_CH, hopping_frequency[hopping_frequency_no>>1]);
+	XN297_Hopping(hopping_frequency_no>>1);
 	hopping_frequency_no++;
 	if(IS_BIND_IN_PROGRESS)
 	{
@@ -79,34 +79,16 @@ static void __attribute__((unused)) TIGER_send_packet()
 			hopping_frequency_no=2*TIGER_BIND_RF_NUM_CHANNELS;
 	}
 
-	//Clear packet status bits and TX FIFO
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
-	//Send packet
+	//Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, TIGER_PAYLOAD_SIZE);
-	//Set tx_power
-	NRF24L01_SetPower();
 }
 
-static void __attribute__((unused)) TIGER_init()
+static void __attribute__((unused)) TIGER_RF_init()
 {
-	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
 	XN297_SetTXAddr((uint8_t *)"\x68\x94\xA6\xD5\xC3", 5);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);     	// Clear data ready, data sent, and retransmit
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      	// No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);  	// Enable data pipe 0 only
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);             	// 1Mbps
-	NRF24L01_WriteReg(NRF24L01_04_SETUP_RETR, 0x00);	// No retransmits
-	NRF24L01_SetPower();
-	NRF24L01_Activate(0x73);							// Activate feature register
-	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);			// Disable dynamic payload length on all pipes
-	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x01);
-	NRF24L01_Activate(0x73);
-	// Power on, TX mode, 2byte CRC
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
 }
 
 static void __attribute__((unused)) TIGER_initialize_txid()
@@ -132,7 +114,7 @@ uint16_t TIGER_callback()
 	#ifdef MULTI_SYNC
 		telemetry_set_input_sync(TIGER_PACKET_PERIOD);
 	#endif
-	if(IS_BIND_IN_PROGRESS)
+	if(bind_counter)
 		if(--bind_counter==0)
 		{
 			BIND_DONE;
@@ -142,14 +124,13 @@ uint16_t TIGER_callback()
 	return TIGER_PACKET_PERIOD;
 }
 
-uint16_t initTIGER()
+void TIGER_init()
 {
 	BIND_IN_PROGRESS;	// autobind protocol
 	TIGER_initialize_txid();
-	TIGER_init();
+	TIGER_RF_init();
 	hopping_frequency_no = 0;
 	bind_counter=TIGER_BIND_COUNT;
-	return TIGER_INITIAL_WAIT;
 }
 
 #endif

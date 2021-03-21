@@ -80,9 +80,10 @@
 #define NRF24L01_INSTALLED
 //#define SX1276_INSTALLED		// only supported on STM32 modules
 
-//Uncomment (remove //) if you have an internal 5-in-1 Multi module.
+//Uncomment (remove //) if you have an internal 5-in-1 Multi module in a Jumper T18 or T-Lite.
 //All components are considered to be installed and specifics to that module are automatically configured 
-//#define MULTI_5IN1_INTERNAL
+//#define MULTI_5IN1_INTERNAL JP_T18
+//#define MULTI_5IN1_INTERNAL JP_TLite
 
 /** OrangeRX TX **/
 //If you compile for the OrangeRX TX module you need to select the correct board type.
@@ -120,6 +121,7 @@
 //#define FORCE_FLYSKY_TUNING	0
 //#define FORCE_HEIGHT_TUNING	0
 //#define FORCE_HUBSAN_TUNING	0
+//#define FORCE_JOYSWAY_TUNING	0
 //#define FORCE_KYOSHO_TUNING	0
 //#define FORCE_PELIKAN_TUNING	0
 //#define FORCE_WFLY2_TUNING	0
@@ -173,6 +175,7 @@
 #define	FLYSKY_A7105_INO
 #define	HEIGHT_A7105_INO
 #define	HUBSAN_A7105_INO
+#define	JOYSWAY_A7105_INO
 #define	KYOSHO_A7105_INO
 #define	PELIKAN_A7105_INO
 #define	WFLY2_A7105_INO
@@ -184,6 +187,7 @@
 #define	E010R5_CYRF6936_INO
 #define	E129_CYRF6936_INO
 #define	J6PRO_CYRF6936_INO
+#define	MLINK_CYRF6936_INO
 #define	TRAXXAS_CYRF6936_INO
 #define	WFLY_CYRF6936_INO
 #define	WK2x01_CYRF6936_INO
@@ -213,42 +217,45 @@
 #define	CABELL_NRF24L01_INO
 #define	CFLIE_NRF24L01_INO
 #define	CG023_NRF24L01_INO
-#define	CX10_NRF24L01_INO		 //Include Q2X2 protocol
+#define	CX10_NRF24L01_INO		//Include Q2X2 protocol
 #define	DM002_NRF24L01_INO
+#define	E016H_NRF24L01_INO
 #define	E01X_NRF24L01_INO
 #define	ESKY_NRF24L01_INO
 #define	ESKY150_NRF24L01_INO
 #define	FQ777_NRF24L01_INO
 #define	FX816_NRF24L01_INO
 #define	FY326_NRF24L01_INO
-#define	GD00X_NRF24L01_INO
 #define	GW008_NRF24L01_INO
 #define	HISKY_NRF24L01_INO
 #define	HONTAI_NRF24L01_INO
 #define	H8_3D_NRF24L01_INO
 #define	JJRC345_NRF24L01_INO
-#define	KF606_NRF24L01_INO
 #define	KN_NRF24L01_INO
 #define	LOLI_NRF24L01_INO
-#define	MJXQ_NRF24L01_INO
-#define	MT99XX_NRF24L01_INO
 #define	NCC1701_NRF24L01_INO
-#define	OMP_CC2500_INO			//Need both CC2500 and NRF
 #define	POTENSIC_NRF24L01_INO
 #define	PROPEL_NRF24L01_INO
-#define	Q303_NRF24L01_INO
-#define	Q90C_NRF24L01_INO
 #define	REALACC_NRF24L01_INO
 #define	SHENQI_NRF24L01_INO
-#define	SLT_NRF24L01_INO
 #define	SYMAX_NRF24L01_INO
 #define	TIGER_NRF24L01_INO
 #define	V2X2_NRF24L01_INO
 #define	V761_NRF24L01_INO
-#define	V911S_NRF24L01_INO
-#define	XK_NRF24L01_INO
 #define	YD717_NRF24L01_INO
 #define	ZSX_NRF24L01_INO
+
+//The protocols below need either a CC2500 or NRF24L01 to be installed
+#define	GD00X_CCNRF_INO
+#define	KF606_CCNRF_INO
+#define	MJXQ_CCNRF_INO
+#define	MT99XX_CCNRF_INO
+#define	OMP_CCNRF_INO
+#define	Q303_CCNRF_INO
+#define	Q90C_CCNRF_INO
+#define	SLT_CCNRF_INO
+#define	V911S_CCNRF_INO
+#define	XK_CCNRF_INO
 
 //The protocols below need a SX1276 to be installed
 #define	FRSKYR9_SX1276_INO
@@ -303,13 +310,9 @@
 //For STM32 and OrangeRX modules, comment to prevent the TX from forcing the serial telemetry polarity normal/invert.
 #define INVERT_TELEMETRY_TX
 
-//Uncomment if you want to send Multi status telemetry frames (Protocol available, Bind in progress, version...)
-//Use with er9x/erskyTX, for OpenTX you must select MULTI_TELEMETRY below
-//#define MULTI_STATUS
-
-//Sends Multi status and allow OpenTX to autodetect the telemetry format. Comment to disable.
-//Supported by OpenTX version 2.2 RC9 and newer. NOT supported by er9x/erskyTX use MULTI_STATUS instead.
+//Sends Multi status and allow OpenTX and erskyTX to autodetect the telemetry format. Comment to disable.
 #define MULTI_TELEMETRY
+
 //Work in progress: Sync OpenTX frames with the current protocol timing. This feature is only available on the STM32 module. Uncomment to enable.
 //#define MULTI_SYNC
 
@@ -317,7 +320,7 @@
 #define DSM_TELEMETRY				// Forward received telemetry packet directly to TX to be decoded by er9x, erskyTX and OpenTX
 #define SPORT_TELEMETRY				// Use FrSkyX format to send/receive telemetry
 #define AFHDS2A_FW_TELEMETRY		// Forward received telemetry packet directly to TX to be decoded by erskyTX and OpenTX
-#define AFHDS2A_HUB_TELEMETRY		// Use FrSkyD Hub format to send basic telemetry to TX like er9x
+//#define AFHDS2A_HUB_TELEMETRY		// Use FrSkyD Hub format to send basic telemetry to TX like er9x
 #define HUB_TELEMETRY				// Use FrSkyD Hub format to send telemetry to TX
 #define BAYANG_HUB_TELEMETRY		// Use FrSkyD Hub format to send telemetry to TX
 #define BUGS_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
@@ -330,13 +333,25 @@
 #define RLINK_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define WFLY2_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
 #define LOLI_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
-#define HITEC_HUB_TELEMETRY			// Use FrSkyD Hub format to send basic telemetry to the radios which can decode it like er9x, erskyTX and OpenTX
+//#define MLINK_HUB_TELEMETRY			// Use FrSkyD Hub format to send telemetry to TX
+#define MLINK_FW_TELEMETRY			// Forward received telemetry packet directly to TX to be decoded by erskyTX and OpenTX
+//#define HITEC_HUB_TELEMETRY		// Use FrSkyD Hub format to send basic telemetry to the radios which can decode it like er9x, erskyTX and OpenTX
 #define HITEC_FW_TELEMETRY			// Forward received telemetry packets to be decoded by erskyTX and OpenTX
 #define SCANNER_TELEMETRY			// Forward spectrum scanner data to TX
 #define FRSKY_RX_TELEMETRY			// Forward channels data to TX
 #define AFHDS2A_RX_TELEMETRY		// Forward channels data to TX
 #define HOTT_FW_TELEMETRY			// Forward received telemetry packets to be decoded by erskyTX and OpenTX
 #define BAYANG_RX_TELEMETRY			// Forward channels data to TX
+
+/**************************/
+/***  TRAINER SETTINGS  ***/
+/**************************/
+// By default Multi uses the telemetry line to send the received channels using a RX protocol (FrSky, DSM, AFHDS2A, Bayang) to the radio.
+// But this does not work on FrSky radios since the telemetry lines of the internal and external modules are shared (hardware limitation).
+// On a STM32 module and with a simple hardware modification, you can go around this limitation using CPPM to send the trainer information to the radio.
+// Hardware modification: add a 1K resistor between the STM32 USART1 TX pin (Boot0 programming TX pin) and the radio bay pin 2.
+//Comment to disable
+#define SEND_CPPM
 
 /****************************/
 /*** SERIAL MODE SETTINGS ***/
@@ -425,14 +440,14 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 #if NBR_BANKS > 1
 //******************************       BANK 2       ******************************
 //	Switch	Protocol 		Sub protocol	RX_Num	Power		Auto Bind		Option	Chan Order
-/*	1	*/	{PROTO_DSM	,	DSM2_11		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
-/*	2	*/	{PROTO_DSM	,	DSM2_22		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
-/*	3	*/	{PROTO_DSM	,	DSMX_11		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
-/*	4	*/	{PROTO_DSM	,	DSMX_22		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
-/*	5	*/	{PROTO_DSM	,	DSM2_11		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
-/*	6	*/	{PROTO_DSM	,	DSM2_22		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
-/*	7	*/	{PROTO_DSM	,	DSMX_11		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
-/*	8	*/	{PROTO_DSM	,	DSMX_22		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
+/*	1	*/	{PROTO_DSM	,	DSM2_2F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
+/*	2	*/	{PROTO_DSM	,	DSM2_1F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
+/*	3	*/	{PROTO_DSM	,	DSMX_2F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
+/*	4	*/	{PROTO_DSM	,	DSMX_1F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },	// option=number of channels
+/*	5	*/	{PROTO_DSM	,	DSM2_2F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
+/*	6	*/	{PROTO_DSM	,	DSM2_1F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
+/*	7	*/	{PROTO_DSM	,	DSMX_2F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
+/*	8	*/	{PROTO_DSM	,	DSMX_1F		,	0	,	P_HIGH	,	NO_AUTOBIND	,	8	,	0x00000000 },	// option=number of channels
 /*	9	*/	{PROTO_SLT	,	SLT_V1		,	0	,	P_HIGH	,	NO_AUTOBIND	,	6	,	0x00000000 },
 /*	10	*/	{PROTO_HUBSAN,	H107		,	0	,	P_HIGH	,	NO_AUTOBIND	,	0	,	0x00000000 },
 /*	11	*/	{PROTO_HUBSAN,	H301		,	0	,	P_HIGH	,	NO_AUTOBIND	,	0	,	0x00000000 },
@@ -570,20 +585,21 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 	PROTO_DM002
 		NONE
 	PROTO_DSM
-		DSM2_22
-		DSM2_11
-		DSMX_22
-		DSMX_11
+		DSM2_1F
+		DSM2_2F
+		DSMX_1F
+		DSMX_2F
 	PROTO_DSM_RX
 		NONE
 	PROTO_E010R5
+		NONE
+	PROTO_E016H
 		NONE
 	PROTO_E016HV2
 		NONE
 	PROTO_E01X
 		E012
 		E015
-		E016H
 	PROTO_E129
 		NONE
 	PROTO_ESKY
@@ -680,6 +696,8 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 	PROTO_JJRC345
 		JJRC345
 		SKYTMBLR
+	PROTO_JOYSWAY
+		NONE
 	PROTO_KF606
 		NONE
 	PROTO_KN
@@ -706,6 +724,8 @@ const PPM_Parameters PPM_prot[14*NBR_BANKS]=	{
 		YZ
 		LS
 		FY805
+		A180
+		DRAGON
 	PROTO_NCC1701
 		NONE
 	PROTO_OMP

@@ -19,14 +19,16 @@
 #define VERSION_MAJOR		1
 #define VERSION_MINOR		3
 #define VERSION_REVISION	2
-#define VERSION_PATCH_LEVEL	15
+#define VERSION_PATCH_LEVEL	63
+
+#define MODE_SERIAL 0
 
 //******************
 // Protocols
 //******************
 enum PROTOCOLS
 {
-	MODE_SERIAL		= 0,	// Serial commands
+	//PROTO_CONFIG	= 0,	// Module config
 	PROTO_FLYSKY 	= 1,	// =>A7105
 	PROTO_HUBSAN	= 2,	// =>A7105
 	PROTO_FRSKYD	= 3,	// =>CC2500
@@ -109,6 +111,9 @@ enum PROTOCOLS
 	PROTO_E010R5	= 81,	// =>CYRF6936
 	PROTO_LOLI		= 82,	// =>NRF24L01
 	PROTO_E129		= 83,	// =>CYRF6936
+	PROTO_JOYSWAY	= 84,	// =>A7105
+	PROTO_E016H		= 85,	// =>NRF24L01
+	PROTO_CONFIG	= 86,	// Module config
 
 	PROTO_NANORF	= 126,	// =>NRF24L01
 	PROTO_TEST		= 127,	// =>CC2500
@@ -148,10 +153,10 @@ enum Hisky
 };
 enum DSM
 {
-	DSM2_22	= 0,
-	DSM2_11	= 1,
-	DSMX_22	= 2,
-	DSMX_11	= 3,
+	DSM2_1F	= 0,
+	DSM2_2F	= 1,
+	DSMX_1F	= 2,
+	DSMX_2F	= 3,
 	DSM_AUTO = 4,
 };
 enum YD717
@@ -219,6 +224,8 @@ enum MT99XX
 	YZ		= 2,
 	LS		= 3,
 	FY805	= 4,
+	A180	= 5,
+	DRAGON	= 6,
 };
 enum MJXQ
 {
@@ -372,6 +379,8 @@ enum FRSKY_RX
 {
 	FRSKY_RX	= 0,
 	FRSKY_CLONE	= 1,
+	FRSKY_ERASE	= 2,
+	FRSKY_CPPM  = 3,
 };
 
 enum FRSKYL
@@ -429,6 +438,7 @@ enum RLINK
 #define AUTOBIND	1
 #define NO_AUTOBIND	0
 
+//PPM protocols
 struct PPM_Parameters
 {
 	uint8_t protocol;
@@ -438,6 +448,33 @@ struct PPM_Parameters
 	uint8_t autobind	: 1;
 	int8_t option;
 	uint32_t chan_order;
+};
+
+//Callback
+typedef uint16_t (*uint16_function_t) (void);	//pointer to a function with no parameters which return an uint16_t integer
+typedef void     (*void_function_t  ) (void);	//pointer to a function with no parameters which returns nothing
+
+//Protocols definition
+struct mm_protocol_definition {
+	uint8_t protocol;
+	const char *ProtoString;
+	const char *SubProtoString;
+	uint8_t nbrSubProto        : 4;
+	uint8_t optionType         : 4;
+	uint8_t failSafe           : 1;
+	uint8_t chMap              : 1;
+	uint8_t rfSwitch           : 2;
+	void_function_t		Init;
+	uint16_function_t	CallBack;
+};
+extern const mm_protocol_definition multi_protocols[];
+
+enum RF_SWITCH
+{
+	SW_A7105	= 0,	//antenna RF1
+	SW_CC2500	= 1,	//antenna RF2
+	SW_NRF		= 2,	//antenna RF3
+	SW_CYRF		= 3,	//antenna RF4
 };
 
 // Telemetry
@@ -457,16 +494,12 @@ enum MultiPacketTypes
 	MULTI_TELEMETRY_AFHDS2A_AC		= 12,
 	MULTI_TELEMETRY_RX_CHANNELS		= 13,
 	MULTI_TELEMETRY_HOTT			= 14,
+	MULTI_TELEMETRY_MLINK			= 15,
+	MULTI_TELEMETRY_CONFIG			= 16,
 };
 
 // Macros
 #define NOP() __asm__ __volatile__("nop")
-
-//***************
-//***  Tests  ***
-//***************
-#define IS_FAILSAFE_PROTOCOL	( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_HOTT || protocol==PROTO_FRSKYX || protocol==PROTO_FRSKYX2 || protocol==PROTO_FRSKY_R9 || protocol==PROTO_WFLY2 || protocol==PROTO_LOLI)
-#define IS_CHMAP_PROTOCOL		( (protocol==PROTO_HISKY && sub_protocol==HK310) || protocol==PROTO_AFHDS2A || protocol==PROTO_DEVO || protocol==PROTO_FUTABA || protocol==PROTO_WK2x01 || protocol== PROTO_DSM || protocol==PROTO_SLT || protocol==PROTO_FLYSKY || (protocol==PROTO_KYOSHO && sub_protocol==KYOSHO_HYPE) || protocol==PROTO_ESKY || protocol==PROTO_J6PRO || protocol==PROTO_PELIKAN  || protocol==PROTO_SKYARTEC || protocol==PROTO_ESKY150V2 || protocol==PROTO_DSM_RX)
 
 //***************
 //***  Flags  ***
@@ -556,6 +589,11 @@ enum MultiPacketTypes
 #define DISABLE_TELEM_on		protocol_flags3 |= _BV(3)
 #define IS_DISABLE_TELEM_on		( ( protocol_flags3 & _BV(3) ) !=0 )
 #define IS_DISABLE_TELEM_off	( ( protocol_flags3 & _BV(3) ) ==0 )
+//Valid/invalid sub_proto
+#define SUB_PROTO_VALID			protocol_flags3 &= ~_BV(6)
+#define SUB_PROTO_INVALID		protocol_flags3 |= _BV(6)
+#define IS_SUB_PROTO_INVALID	( ( protocol_flags3 & _BV(6) ) !=0 )
+#define IS_SUB_PROTO_VALID		( ( protocol_flags3 & _BV(6) ) ==0 )
 //LBT power
 #define LBT_POWER_off		protocol_flags3 &= ~_BV(7)
 #define LBT_POWER_on		protocol_flags3 |= _BV(7)
@@ -708,6 +746,10 @@ enum CYRF_POWER
 #define	CYRF_RANGE_POWER	CYRF_POWER_1	// 1/30 of the full power distance
 #define	CYRF_BIND_POWER		CYRF_POWER_0
 
+// SX1276
+#define JP_T18		1
+#define JP_TLite	2
+
 enum TXRX_State {
 	TXRX_OFF,
 	TX_EN,
@@ -855,6 +897,8 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 				E010R5		81
 				LOLI		82
 				E129		83
+				JOYSWAY		84
+				E016H		85
    BindBit=>		0x80	1=Bind/0=No
    AutoBindBit=>	0x40	1=Yes /0=No
    RangeCheck=>		0x20	1=Yes /0=No
@@ -875,10 +919,10 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 			Hisky		0
 			HK310		1
 		sub_protocol==DSM
-			DSM2_22 	0
-			DSM2_11 	1
-			DSMX_22 	2
-			DSMX_11 	3
+			DSM2_1F 	0
+			DSM2_2F 	1
+			DSMX_1F 	2
+			DSMX_2F 	3
 			DSM_AUTO	4
 		sub_protocol==YD717
 			YD717		0
@@ -1000,7 +1044,6 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 		sub_protocol==E01X
 			E012		0
 			E015		1
-			E016H		2
 		sub_protocol==GD00X
 			GD_V1		0
 			GD_V2		1
@@ -1084,35 +1127,8 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
 	  DSM: Stream[27..33] Forward Programming
 */
 /*
-  Multimodule Status
-  Based on #define MULTI_STATUS
-
-  Serial: 100000 Baud 8e2 (same as input)
-
-  Format: header (2 bytes) + data (variable)
-   [0] = 'M' (0x4d)
-   [1] Length (excluding the 2 header bytes)
-   [2-xx] data
-
-  Type = 0x01 Multimodule Status:
-   [2] Flags
-   0x01 = Input signal detected
-   0x02 = Serial mode enabled
-   0x04 = Protocol is valid
-   0x08 = Module is in binding mode
-   0x10 = Module waits a bind event to load the protocol
-   0x20 = Current protocol supports failsafe
-   0x40 = Current protocol supports disable channel mapping
-   0x80 = Data buffer is almost full
-   [3] major
-   [4] minor
-   [5] revision
-   [6] patchlevel,
-   version of multi code, should be displayed as major.minor.revision.patchlevel
-*/
-/*
-  Multiprotocol telemetry/command definition for OpenTX
-  Based on #define MULTI_TELEMETRY enables OpenTX to get the multimodule status and select the correct telemetry type automatically.
+  Multiprotocol telemetry/command definition for OpenTX and erskyTX
+  Based on #define MULTI_TELEMETRY enables OpenTX and erskyTX to get the multimodule status and select the correct telemetry type automatically.
 
   Serial: 100000 Baud 8e2 (same as input)
 
@@ -1153,16 +1169,17 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
    [11] Prev valid protocol number, can be used to skip invalid protocols
    [12..18] Protocol name [7], not null terminated if prototcol len == 7
    [19>>4] Option text to be displayed: 
-			OPTION_NONE		0
-			OPTION_OPTION	1
-			OPTION_RFTUNE	2
-			OPTION_VIDFREQ	3
-			OPTION_FIXEDID	4
-			OPTION_TELEM	5
-			OPTION_SRVFREQ	6
-			OPTION_MAXTHR	7
-			OPTION_RFCHAN	8
-			OPTION_RFPOWER	9
+			OPTION_NONE		0	Hidden field
+			OPTION_OPTION	1	"Option:"		value=-128..0(default)..127
+			OPTION_RFTUNE	2	"RF freq tune:"	value=-128..0(default)..127
+			OPTION_VIDFREQ	3	"Video freq:"	value=-128..0(default)..127
+			OPTION_FIXEDID	4	"ID type:"		value="Auto":0(default), "Fixed":1
+			OPTION_TELEM	5	"Telem:"		value="Off":0(default), "On":1, "Off+Aux":2, "On+Aux":3
+			OPTION_SRVFREQ	6	"Servo freq(Hz):"	value="50":0(default).."400":70 => display=50+5*option with option=0..70
+			OPTION_MAXTHR	7	"Max throw:"	value="Disabled":0, "Enabled":1
+			OPTION_RFCHAN	8	"Select RF chan:"	value=-128..0(default)..127
+			OPTION_RFPOWER	9	"RF power:"		"1.6mW":0(default),"2.0mW":1,"2.5mW":2,"3.2mW":3,"4.0mW":4,"5.0mW":5,"6.3mW":6,"7.9mW":7,"10mW\0":8,"13mW\0":9,"16mW\0":10,"20mW\0":11,"25mW\0":12,"32mW\0":13,"40mW\0":14,"50mW\0":15
+			OPTION_WBUS		10	"Output:"		"WBUS":0(default),"PPM":1
    [19&0x0F] Number of sub protocols
    [20..27] Sub protocol name [8], not null terminated if sub prototcol len == 8
    If the current protocol is invalid [12..27] are all 0x00.
@@ -1236,4 +1253,14 @@ Serial: 100000 Baud 8e2      _ xxxx xxxx p --
    data[3] = page
    data[4-13] = data
 
+  Type 0x0F M-Link telemetry
+   length: 10
+   data[0] = TX_RSSI
+   data[1] = TX_LQI
+   data[2] = telem_type
+   data[3-9] = data
+
+  Type 0x10 Config telemetry
+   length: 22
+   data[0..21] = Config data
 */

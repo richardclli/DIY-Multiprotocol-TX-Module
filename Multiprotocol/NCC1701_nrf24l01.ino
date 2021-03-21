@@ -31,25 +31,16 @@ enum {
 	NCC_RX3,
 };
 
-static void __attribute__((unused)) NCC_init()
+static void __attribute__((unused)) NCC_RF_init()
 {
 	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
 
-	NRF24L01_WriteReg(NRF24L01_03_SETUP_AW, 0x03);     // 5-byte RX/TX address
 	NRF24L01_WriteRegisterMulti(NRF24L01_0A_RX_ADDR_P0, (uint8_t*)"\xE7\xE7\xC7\xD7\x67",5);
 	NRF24L01_WriteRegisterMulti(NRF24L01_10_TX_ADDR,    (uint8_t*)"\xE7\xE7\xC7\xD7\x67",5);
 	
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);			// Clear data ready, data sent, and retransmit
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);				// No Auto Acknowledgment on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);			// Enable data pipe 0 only
-	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, NCC_RX_PACKET_LEN);	// Enable rx pipe 0
-	NRF24L01_SetBitrate(NRF24L01_BR_250K);					// NRF24L01_BR_1M, NRF24L01_BR_2M, NRF24L01_BR_250K
-	NRF24L01_SetPower();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_00_CONFIG, (0 << NRF24L01_00_EN_CRC)   // switch to TX mode and disable CRC
+	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, NCC_RX_PACKET_LEN);			// Enable rx pipe 0
+	NRF24L01_SetBitrate(NRF24L01_BR_250K);								// NRF24L01_BR_1M, NRF24L01_BR_2M, NRF24L01_BR_250K
+	NRF24L01_WriteReg(NRF24L01_00_CONFIG, (0 << NRF24L01_00_EN_CRC)		// switch to TX mode and disable CRC
 										| (1 << NRF24L01_00_CRCO)
 										| (1 << NRF24L01_00_PWR_UP)
 										| (0 << NRF24L01_00_PRIM_RX));
@@ -247,7 +238,7 @@ const uint8_t PROGMEM NCC_TX_DATA[][6]= {
 	{ 0xC2, 0x93, 0x55, 0x44, 0x4C, 0x0B },
 };
 
-uint16_t initNCC(void)
+void NCC_init(void)
 {
 	BIND_IN_PROGRESS;	// autobind protocol
 	
@@ -269,9 +260,8 @@ uint16_t initNCC(void)
 	hopping_frequency[4]=0x08;	// bind channel 1
 	hopping_frequency[5]=0x2A;	// bind channel 2
 	hopping_frequency_no=4;		// start with bind
-	NCC_init();
+	NCC_RF_init();
 	phase=NCC_BIND_TX1;
-	return 10000;
 }
 
 #endif

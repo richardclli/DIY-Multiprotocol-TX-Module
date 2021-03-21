@@ -16,7 +16,7 @@
 
 #if defined(BUGSMINI_NRF24L01_INO)
 
-#include "iface_nrf24l01.h"
+#include "iface_xn297.h"
 
 #define BUGSMINI_INITIAL_WAIT    500
 #define BUGSMINI_PACKET_INTERVAL 6840
@@ -57,22 +57,10 @@ enum {
 #define BUGSMINI_FLAG_ANGLE   0x02    // angle/acro mode (set is angle mode)
 #define BUGSMINI_FLAG_ALTHOLD 0x04    // angle/altitude hold mode (set is altitude mode)
 
-static void __attribute__((unused)) BUGSMINI_init()
+static void __attribute__((unused)) BUGSMINI_RF_init()
 {
-	NRF24L01_Initialize();
-	NRF24L01_SetTxRxMode(TX_EN);
-	NRF24L01_FlushTx();
-	NRF24L01_FlushRx();
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);     // Clear data ready, data sent, and retransmit
-	NRF24L01_WriteReg(NRF24L01_01_EN_AA, 0x00);      // No Auto Acknowldgement on all data pipes
-	NRF24L01_WriteReg(NRF24L01_02_EN_RXADDR, 0x01);  // Enable data pipe 0 only
-	NRF24L01_WriteReg(NRF24L01_11_RX_PW_P0, BUGSMINI_RX_PAYLOAD_SIZE); // bytes of data payload for rx pipe 1
-	NRF24L01_WriteReg(NRF24L01_06_RF_SETUP, 0x07);
-	NRF24L01_SetBitrate(NRF24L01_BR_1M);
-	NRF24L01_SetPower();
-	NRF24L01_Activate(0x73);                          // Activate feature register
-	NRF24L01_WriteReg(NRF24L01_1C_DYNPD, 0x00);       // Disable dynamic payload length on all pipes
-	NRF24L01_WriteReg(NRF24L01_1D_FEATURE, 0x00);     // Set feature bits on
+	XN297_Configure(XN297_CRCEN, XN297_SCRAMBLED, XN297_1M);
+	//XN297_HoppingCalib(BUGSMINI_NUM_RF_CHANNELS*2);
 }
 
 static void __attribute__((unused)) BUGSMINI_check_arming()
@@ -95,7 +83,7 @@ static void __attribute__((unused)) BUGSMINI_check_arming()
 	}
 }
 
-static void __attribute__((unused)) BUGSMINI_send_packet(uint8_t bind)
+static void __attribute__((unused)) BUGSMINI_send_packet()
 {
 	BUGSMINI_check_arming();  // sets globals arm_flags and armed
 
@@ -107,7 +95,7 @@ static void __attribute__((unused)) BUGSMINI_send_packet(uint8_t bind)
 	packet[1] = BUGSMINI_txid[0];
 	packet[2] = BUGSMINI_txid[1];
 	packet[3] = BUGSMINI_txid[2];
-	if(bind)
+	if(IS_BIND_IN_PROGRESS)
 	{
 		packet[4] = 0x00;
 		packet[5] = 0x7d;
@@ -159,15 +147,14 @@ static void __attribute__((unused)) BUGSMINI_send_packet(uint8_t bind)
 		hopping_frequency_no++;
 		if(hopping_frequency_no >= BUGSMINI_NUM_RF_CHANNELS)
 			hopping_frequency_no = 0;
-		NRF24L01_WriteReg(NRF24L01_05_RF_CH, bind ? hopping_frequency[hopping_frequency_no+BUGSMINI_NUM_RF_CHANNELS] : hopping_frequency[hopping_frequency_no]);
+		XN297_Hopping(IS_BIND_IN_PROGRESS ? hopping_frequency[hopping_frequency_no+BUGSMINI_NUM_RF_CHANNELS] : hopping_frequency[hopping_frequency_no]);
 	}
 
-	// Power on, TX mode, 2byte CRC
-	XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) | _BV(NRF24L01_00_PWR_UP));
-	NRF24L01_WriteReg(NRF24L01_07_STATUS, 0x70);
-	NRF24L01_FlushTx();
+	// Send
+	XN297_SetPower();
+	XN297_SetTxRxMode(TXRX_OFF);
+	XN297_SetTxRxMode(TX_EN);
 	XN297_WritePayload(packet, BUGSMINI_TX_PAYLOAD_SIZE);
-	NRF24L01_SetPower();
 }
 
 // compute final address for the rxid received during bind
@@ -231,37 +218,37 @@ static void __attribute__((unused)) BUGSMINI_make_address()
     // Something wrong happened if we arrive here....
 }
 
+#if defined(BUGS_HUB_TELEMETRY)
 static void __attribute__((unused)) BUGSMINI_update_telemetry()
 {
-#if defined(BUGS_HUB_TELEMETRY)
 	uint8_t checksum = 0x6d;
 	for(uint8_t i=1; i<12; i++)
-		checksum += packet[i];
-	if(packet[0] == checksum)
+		checksum += packet_in[i];
+	if(packet_in[0] == checksum)
 	{
-		RX_RSSI = packet[3];
+		RX_RSSI = packet_in[3];
 		if(sub_protocol==BUGS3H)
 		{
-			if(packet[11] & 0x40)
+			if(packet_in[11] & 0x40)
 				v_lipo1 = 0x40; // Warning
-			else if(packet[11] & 0x80)
+			else if(packet_in[11] & 0x80)
 				v_lipo1 = 0x20; // Critical
 			else
 				v_lipo1 = 0x80; // Ok
 		}
 		else
 		{
-			if(packet[11] & 0x80)
+			if(packet_in[11] & 0x80)
 				v_lipo1 = 0x80; // Ok
-			else if(packet[11] & 0x40)
+			else if(packet_in[11] & 0x40)
 				v_lipo1 = 0x40; // Warning
 			else
 				v_lipo1 = 0x20; // Critical
 		}
 		telemetry_link=1;
 	}
-#endif
 }
+#endif
 
 uint16_t BUGSMINI_callback()
 {
@@ -269,58 +256,52 @@ uint16_t BUGSMINI_callback()
 	switch(phase)
 	{
 		case BUGSMINI_BIND1:
-			if( NRF24L01_ReadReg(NRF24L01_07_STATUS) & _BV(NRF24L01_07_RX_DR))
+			if( XN297_IsRX() )
 			{ // RX fifo data ready
-				XN297_ReadPayload(packet, BUGSMINI_RX_PAYLOAD_SIZE);
+				XN297_ReadPayload(packet, BUGSMINI_RX_PAYLOAD_SIZE);	// Not checking the CRC??
 				base_adr=BUGSMINI_EEPROM_OFFSET+(RX_num&0x0F)*2;
-				eeprom_write_byte((EE_ADDR)(base_adr+0),packet[1]);	// Save rxid in EEPROM
-				eeprom_write_byte((EE_ADDR)(base_adr+1),packet[2]);	// Save rxid in EEPROM
-				NRF24L01_SetTxRxMode(TXRX_OFF);
-				NRF24L01_SetTxRxMode(TX_EN);
+				eeprom_write_byte((EE_ADDR)(base_adr+0),packet[1]);		// Save rxid in EEPROM
+				eeprom_write_byte((EE_ADDR)(base_adr+1),packet[2]);		// Save rxid in EEPROM
 				BUGSMINI_make_address();
 				XN297_SetTXAddr(rx_tx_addr, 5);
-				XN297_SetRXAddr(rx_tx_addr, 5);
+				XN297_SetRXAddr(rx_tx_addr, BUGSMINI_RX_PAYLOAD_SIZE);
 				phase = BUGSMINI_DATA1;
 				BIND_DONE;
-				return BUGSMINI_PACKET_INTERVAL;
+				break;
 			}
-			NRF24L01_SetTxRxMode(TXRX_OFF);
-			NRF24L01_SetTxRxMode(TX_EN);
-			BUGSMINI_send_packet(1);
+			BUGSMINI_send_packet();
 			phase = BUGSMINI_BIND2;
 			return BUGSMINI_WRITE_WAIT;
 		case BUGSMINI_BIND2:
 			// switch to RX mode
-			NRF24L01_SetTxRxMode(TXRX_OFF);
-			NRF24L01_SetTxRxMode(RX_EN);
-			NRF24L01_FlushRx();
-			XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) 
-						  | _BV(NRF24L01_00_PWR_UP) | _BV(NRF24L01_00_PRIM_RX));
+			XN297_SetTxRxMode(TXRX_OFF);
+			XN297_SetTxRxMode(RX_EN);
 			phase = BUGSMINI_BIND1;
 			return BUGSMINI_PACKET_INTERVAL - BUGSMINI_WRITE_WAIT;
 		case BUGSMINI_DATA1:
 			#ifdef MULTI_SYNC
 				telemetry_set_input_sync(BUGSMINI_PACKET_INTERVAL);
 			#endif
-			if( NRF24L01_ReadReg(NRF24L01_07_STATUS) & _BV(NRF24L01_07_RX_DR))
-			{ // RX fifo data ready => read only 12 bytes to not overwrite channel change flag
-				XN297_ReadPayload(packet, 12);
-				BUGSMINI_update_telemetry();
-			}
-			NRF24L01_SetTxRxMode(TXRX_OFF);
-			NRF24L01_SetTxRxMode(TX_EN);
-			BUGSMINI_send_packet(0);
+			#if defined(BUGS_HUB_TELEMETRY)
+				if( XN297_IsRX() )
+				{
+					XN297_ReadPayload(packet_in, BUGSMINI_RX_PAYLOAD_SIZE);	// Not checking the CRC??
+					BUGSMINI_update_telemetry();
+				}
+			#endif
+			BUGSMINI_send_packet();
+	#if not defined(BUGS_HUB_TELEMETRY)
+			break;
+	#else
 			phase = BUGSMINI_DATA2;
 			return BUGSMINI_WRITE_WAIT;
 		case BUGSMINI_DATA2:
 			// switch to RX mode
-			NRF24L01_SetTxRxMode(TXRX_OFF);
-			NRF24L01_FlushRx();
-			NRF24L01_SetTxRxMode(RX_EN);
-			XN297_Configure(_BV(NRF24L01_00_EN_CRC) | _BV(NRF24L01_00_CRCO) 
-							| _BV(NRF24L01_00_PWR_UP) | _BV(NRF24L01_00_PRIM_RX));
+			XN297_SetTxRxMode(TXRX_OFF);
+			XN297_SetTxRxMode(RX_EN);
 			phase = BUGSMINI_DATA1;
 			return BUGSMINI_PACKET_INTERVAL - BUGSMINI_WRITE_WAIT;
+	#endif
 	}
 	return BUGSMINI_PACKET_INTERVAL;
 }
@@ -357,28 +338,27 @@ static void __attribute__((unused)) BUGSMINI_initialize_txid()
 	BUGSMINI_txhash = pgm_read_byte_near( &BUGSMINI_tx_hash[rx_tx_addr[3]%BUGSMINI_NUM_TX_RF_MAPS] );
 }
 
-uint16_t initBUGSMINI()
+void BUGSMINI_init()
 {
 	BUGSMINI_initialize_txid();
+	BUGSMINI_RF_init();
 	memset(packet, (uint8_t)0, BUGSMINI_TX_PAYLOAD_SIZE);
-	BUGSMINI_init();
 	if(IS_BIND_IN_PROGRESS)
 	{
 		XN297_SetTXAddr((const uint8_t*)"mjxRC", 5);
-		XN297_SetRXAddr((const uint8_t*)"mjxRC", 5);
+		XN297_SetRXAddr((const uint8_t*)"mjxRC", BUGSMINI_RX_PAYLOAD_SIZE);
 		phase = BUGSMINI_BIND1;
 	}
 	else
 	{
 		BUGSMINI_make_address();
 		XN297_SetTXAddr(rx_tx_addr, 5);
-		XN297_SetRXAddr(rx_tx_addr, 5);
+		XN297_SetRXAddr(rx_tx_addr, BUGSMINI_RX_PAYLOAD_SIZE);
 		phase = BUGSMINI_DATA1;
 	}
 	armed = 0;
 	arm_flags = BUGSMINI_FLAG_DISARM;    // initial value from captures
 	arm_channel_previous = BUGSMINI_CH_SW_ARM;
-	return BUGSMINI_INITIAL_WAIT;
 }
 
 #endif
